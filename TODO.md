@@ -1,6 +1,7 @@
 # TODO - Motor de ajedrez
 
-Documento de trabajo para iterar el proyecto desde el estado actual hasta un motor funcional.
+Hoja de ruta del proyecto. La base de reglas está completada y el trabajo actual se centra en
+convertirla en un motor de búsqueda.
 
 ## 1. Base del dominio
 
@@ -46,23 +47,37 @@ Documento de trabajo para iterar el proyecto desde el estado actual hasta un mot
 
 ## 6. Motor de búsqueda
 
-- [ ] Implementar evaluación material básica.
-- [ ] Implementar minimax.
-- [ ] Añadir alpha-beta pruning.
-- [ ] Añadir ordenación de movimientos.
-- [ ] Añadir iterative deepening.
-- [ ] Añadir quiescence search.
+### Fundamentos
+
+- [x] Implementar evaluación material básica en centipeones.
+- [x] Evaluar mate y ahogado desde la perspectiva indicada.
+- [x] Definir la API de búsqueda y su resultado: mejor jugada, puntuación, profundidad y nodos.
+
+### Búsqueda y calidad de jugada
+
+- [x] Implementar minimax a profundidad fija.
+- [x] Puntuar la distancia al mate para preferir mates rápidos y retrasar derrotas inevitables.
+- [x] Añadir alpha-beta pruning.
+- [ ] Añadir ordenación de movimientos: promociones, capturas, jaques y mejor jugada anterior.
+- [ ] Añadir iterative deepening para profundizar por etapas y respetar un límite de tiempo.
+- [ ] Añadir quiescence search en las hojas para resolver capturas, promociones y jaques pendientes.
 
 ## 7. Rendimiento
 
-- [ ] Medir tiempos de generación y búsqueda.
-- [ ] Optimizar estructuras de datos si es necesario.
-- [ ] Añadir transposition table con hashing Zobrist.
+- [ ] Medir tiempos de generación y búsqueda, profundidad alcanzada y nodos por segundo.
+- [ ] Añadir transposition table con hashing Zobrist para reutilizar posiciones repetidas.
+- [ ] Optimizar estructuras de datos solo cuando las mediciones identifiquen un cuello de botella.
+
+### Mejoras futuras de exploración
+
+- [ ] Sustituir las copias completas de `Board` por `make/unmake` interno con un `UndoState`.
+- [ ] Reutilizar `make/unmake` al filtrar movimientos que dejan al rey en jaque.
+- [ ] Evaluar una representación de tablero más compacta solo si las mediciones lo justifican.
 
 ## 8. Interfaz y uso
 
 - [ ] Crear entrada por consola.
-- [ ] Mostrar tablero en texto.
+- [x] Mostrar tablero en texto.
 - [ ] Leer movimientos en una notación definida.
 - [ ] Definir formato UCI si se quiere integrar con GUIs externas.
 
@@ -76,15 +91,21 @@ Documento de trabajo para iterar el proyecto desde el estado actual hasta un mot
 - [x] Test de promoción.
 - [x] Test de jaque, mate y ahogado.
 - [x] Test de `makeMove` / `undoMove`.
+- [x] Test de turno, legalidad y protección frente a metadatos de movimiento incorrectos.
+- [x] Test de evaluación material, mate y ahogado.
+- [x] Test de selección táctica del buscador: ganancia de material, defensa y mate.
+- [ ] Test de rendimiento y número de nodos al añadir optimizaciones.
 
-## Orden recomendado
+## Orden de trabajo actual
 
-1. Base del dominio
-2. Reglas básicas
-3. Estado de partida
-4. Legalidad de jugadas
-5. Aplicación y deshacer
-6. Tests
-7. Motor de búsqueda
-8. Rendimiento
-9. Interfaz y uso
+1. Definir la API de búsqueda y su resultado.
+2. Implementar minimax a profundidad fija.
+3. Añadir puntuación por distancia al mate y pruebas tácticas.
+4. Integrar alpha-beta pruning.
+5. Mejorar la ordenación de movimientos.
+6. Incorporar iterative deepening y límite de tiempo.
+7. Añadir quiescence search.
+8. Medir rendimiento.
+9. Añadir hashing Zobrist y tabla de transposiciones.
+10. Optimizar solo a partir de las mediciones.
+11. Crear la interfaz de consola y, si procede, UCI.

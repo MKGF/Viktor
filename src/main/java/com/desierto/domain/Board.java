@@ -21,6 +21,7 @@ public class Board {
   private Cell enPassantTarget;
   private int halfmoveClock;
   private int fullmoveNumber;
+  private long positionVersion;
 
   public Board() {
     this.squares = new Piece[8][8];
@@ -33,6 +34,7 @@ public class Board {
     this.enPassantTarget = null;
     this.halfmoveClock = 0;
     this.fullmoveNumber = 1;
+    this.positionVersion = 0;
   }
 
   public static Board standard() {
@@ -52,6 +54,7 @@ public class Board {
     copy.enPassantTarget = enPassantTarget;
     copy.halfmoveClock = halfmoveClock;
     copy.fullmoveNumber = fullmoveNumber;
+    copy.positionVersion = positionVersion;
     for (int row = 0; row < 8; row++) {
       for (int column = 0; column < 8; column++) {
         Piece piece = squares[row][column];
@@ -61,6 +64,13 @@ public class Board {
       }
     }
     copy.lastMove = lastMove == null ? null : copyMove(lastMove, copy);
+    return copy;
+  }
+
+  Board copyAfterGeneratedMove(Move move) {
+    Objects.requireNonNull(move, "move must not be null");
+    Board copy = copy();
+    copy.applyGeneratedMove(move);
     return copy;
   }
 
@@ -83,17 +93,41 @@ public class Board {
       throw new IllegalArgumentException("Piece position must match the target square");
     }
     squares[cell.row()][cell.column()] = piece;
+    positionVersion++;
+  }
+
+  void configurePosition(Color sideToMove, boolean whiteKingsideCastleRight,
+      boolean whiteQueensideCastleRight, boolean blackKingsideCastleRight,
+      boolean blackQueensideCastleRight, Cell enPassantTarget, int halfmoveClock,
+      int fullmoveNumber) {
+    this.sideToMove = Objects.requireNonNull(sideToMove, "sideToMove must not be null");
+    this.whiteKingsideCastleRight = whiteKingsideCastleRight;
+    this.whiteQueensideCastleRight = whiteQueensideCastleRight;
+    this.blackKingsideCastleRight = blackKingsideCastleRight;
+    this.blackQueensideCastleRight = blackQueensideCastleRight;
+    this.enPassantTarget = enPassantTarget;
+    if (halfmoveClock < 0) {
+      throw new IllegalArgumentException("halfmoveClock must not be negative");
+    }
+    if (fullmoveNumber < 1) {
+      throw new IllegalArgumentException("fullmoveNumber must be at least 1");
+    }
+    this.halfmoveClock = halfmoveClock;
+    this.fullmoveNumber = fullmoveNumber;
+    positionVersion++;
   }
 
   public Optional<Piece> removePiece(Cell cell) {
     validateCell(cell);
     Piece piece = squares[cell.row()][cell.column()];
     squares[cell.row()][cell.column()] = null;
+    positionVersion++;
     return Optional.ofNullable(piece);
   }
 
   public void makeMove(Move move) {
     Objects.requireNonNull(move, "move must not be null");
+    validateLegalMove(move);
     history.save(copy());
     try {
       applyMoveInternal(move);
@@ -101,6 +135,19 @@ public class Board {
       history.restore();
       throw ex;
     }
+  }
+
+  void applyGeneratedMove(Move move) {
+    Objects.requireNonNull(move, "move must not be null");
+    applyMoveInternal(move);
+  }
+
+  boolean isAtVersion(long version) {
+    return positionVersion == version;
+  }
+
+  long positionVersion() {
+    return positionVersion;
   }
 
   public void undoMove() {
@@ -151,6 +198,7 @@ public class Board {
     if (piece == null) {
       throw new IllegalStateException("No piece on square " + move.from().toAlgebraic());
     }
+
     if (piece.getColor() != move.color()) {
       throw new IllegalArgumentException("Move color must match piece on board");
     }
@@ -163,6 +211,36 @@ public class Board {
       case CASTLE_QUEENSIDE -> applyCastleMove(move, piece, false);
       default -> throw new IllegalStateException("Unexpected move type: " + move.type());
     }
+    positionVersion++;
+  }
+
+  private void validateLegalMove(Move move) {
+    if (move.color() != sideToMove) {
+      throw new IllegalArgumentException("Move color must match the side to move");
+    }
+    boolean legalMove = new MoveGenerator().generateLegalMoves(this, sideToMove).stream()
+        .anyMatch(candidate -> representsSameMove(move, candidate));
+    if (!legalMove) {
+      throw new IllegalArgumentException("Move is not legal in the current position");
+    }
+  }
+
+  private boolean representsSameMove(Move requested, Move candidate) {
+    return requested.color() == candidate.color()
+        && requested.from().equals(candidate.from())
+        && requested.to().equals(candidate.to())
+        && requested.type() == candidate.type()
+        && representsSamePiece(requested.piece(), candidate.piece())
+        && representsSamePiece(requested.promotionPiece(), candidate.promotionPiece())
+        && representsSamePiece(requested.capturedPiece(), candidate.capturedPiece());
+  }
+
+  private boolean representsSamePiece(Piece requested, Piece candidate) {
+    if (requested == null || candidate == null) {
+      return requested == candidate;
+    }
+    return requested.getClass() == candidate.getClass()
+        && requested.getColor() == candidate.getColor();
   }
 
   public List<Piece> getPieces() {
@@ -217,6 +295,7 @@ public class Board {
     enPassantTarget = snapshot.enPassantTarget;
     halfmoveClock = snapshot.halfmoveClock;
     fullmoveNumber = snapshot.fullmoveNumber;
+    positionVersion++;
   }
 
   private void applyRegularMove(Move move, Piece piece) {

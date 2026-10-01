@@ -2,6 +2,7 @@ package com.desierto.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.desierto.domain.pieces.King;
@@ -45,6 +46,28 @@ class BoardTest {
   }
 
   @Test
+  void shouldBuildACustomPositionWithSearchRelevantState() {
+    Board board = BoardFactory.position()
+        .sideToMove(Color.BLACK)
+        .castlingRights(true, false, false, true)
+        .enPassantTarget(Cell.D3)
+        .halfmoveClock(17)
+        .fullmoveNumber(28)
+        .place(new King(Color.WHITE, Cell.E1), Cell.E1)
+        .place(new King(Color.BLACK, Cell.E8), Cell.E8)
+        .build();
+
+    assertEquals(Color.BLACK, board.getSideToMove());
+    assertTrue(board.canWhiteCastleKingside());
+    assertFalse(board.canWhiteCastleQueenside());
+    assertFalse(board.canBlackCastleKingside());
+    assertTrue(board.canBlackCastleQueenside());
+    assertEquals(Cell.D3, board.getEnPassantTarget().orElseThrow());
+    assertEquals(17, board.getHalfmoveClock());
+    assertEquals(28, board.getFullmoveNumber());
+  }
+
+  @Test
   void shouldPlaceMoveAndRemovePieces() {
     Pawn pawn = new Pawn(Color.WHITE, Cell.E2);
     Board board = BoardFactory.withPieces(BoardFactory.placement(pawn, Cell.E2));
@@ -60,6 +83,58 @@ class BoardTest {
 
     assertTrue(board.removePiece(Cell.E4).isPresent());
     assertFalse(board.isOccupied(Cell.E4));
+  }
+
+  @Test
+  void shouldCreateAnIndependentPositionAfterALegalMove() {
+    Pawn pawn = new Pawn(Color.WHITE, Cell.E2);
+    Board board = BoardFactory.withPieces(BoardFactory.placement(pawn, Cell.E2));
+    Move move = new Move(Color.WHITE, pawn, Cell.E2, Cell.E4, null, MoveType.NORMAL, null);
+
+    LegalMove legalMove = new MoveGenerator().generateLegalMoveApplications(board, Color.WHITE).stream()
+        .filter(candidate -> candidate.move().to().equals(Cell.E4))
+        .findFirst()
+        .orElseThrow();
+
+    Board resultingBoard = legalMove.resultingPosition();
+
+    assertTrue(board.isOccupied(Cell.E2));
+    assertTrue(board.getPieceAt(Cell.E4).isEmpty());
+    assertTrue(resultingBoard.getPieceAt(Cell.E2).isEmpty());
+    assertTrue(resultingBoard.isOccupied(Cell.E4));
+    assertEquals(Color.BLACK, resultingBoard.getSideToMove());
+  }
+
+  @Test
+  void shouldRejectALegalMoveCreatedForAnOlderPosition() {
+    Pawn pawn = new Pawn(Color.WHITE, Cell.E2);
+    Board board = BoardFactory.withPieces(BoardFactory.placement(pawn, Cell.E2));
+    LegalMove legalMove = new MoveGenerator().generateLegalMoveApplications(board, Color.WHITE).stream()
+        .filter(candidate -> candidate.move().to().equals(Cell.E4))
+        .findFirst()
+        .orElseThrow();
+
+    board.makeMove(new Move(Color.WHITE, pawn, Cell.E2, Cell.E3, null, MoveType.NORMAL, null));
+
+    assertThrows(IllegalStateException.class, legalMove::resultingPosition);
+  }
+
+  @Test
+  void shouldInvalidateLegalMovesWhenUndoingTheirSourcePosition() {
+    Pawn whitePawn = new Pawn(Color.WHITE, Cell.E2);
+    Pawn blackPawn = new Pawn(Color.BLACK, Cell.A7);
+    Board board = BoardFactory.withPieces(
+        BoardFactory.placement(whitePawn, Cell.E2),
+        BoardFactory.placement(blackPawn, Cell.A7));
+    board.makeMove(new Move(Color.WHITE, whitePawn, Cell.E2, Cell.E3, null, MoveType.NORMAL, null));
+    LegalMove legalMove = new MoveGenerator().generateLegalMoveApplications(board, Color.BLACK).stream()
+        .filter(candidate -> candidate.move().to().equals(Cell.A6))
+        .findFirst()
+        .orElseThrow();
+
+    board.undoMove();
+
+    assertThrows(IllegalStateException.class, legalMove::resultingPosition);
   }
 
   @Test
@@ -79,20 +154,93 @@ class BoardTest {
   }
 
   @Test
-  void shouldUseTheBoardPieceWhenUpdatingCastlingRightsAfterACapture() {
+  void shouldUpdateCastlingRightsAfterACapture() {
     Rook whiteRook = new Rook(Color.WHITE, Cell.H1);
     Rook blackRook = new Rook(Color.BLACK, Cell.H8);
-    Board board = BoardFactory.withPieces(
-        BoardFactory.placement(whiteRook, Cell.H1),
-        BoardFactory.placement(blackRook, Cell.H8));
-    Move captureWithIncorrectMetadata = new Move(Color.BLACK, blackRook, Cell.H8, Cell.H1, null,
-        MoveType.CAPTURE, new Pawn(Color.WHITE, Cell.H1));
+    Board board = BoardFactory.position()
+        .sideToMove(Color.BLACK)
+        .place(whiteRook, Cell.H1)
+        .place(blackRook, Cell.H8)
+        .build();
+    Move capture = new Move(Color.BLACK, blackRook, Cell.H8, Cell.H1, null, MoveType.CAPTURE,
+        whiteRook);
 
-    board.makeMove(captureWithIncorrectMetadata);
+    board.makeMove(capture);
 
     assertFalse(board.canWhiteCastleKingside());
     assertEquals(Cell.H1, board.getLastMove().orElseThrow().piece().getCell());
     assertTrue(board.getLastMove().orElseThrow().capturedPiece() instanceof Rook);
+  }
+
+  @Test
+  void shouldRejectACaptureWithIncorrectMetadata() {
+    Rook whiteRook = new Rook(Color.WHITE, Cell.H1);
+    Rook blackRook = new Rook(Color.BLACK, Cell.H8);
+    Board board = BoardFactory.position()
+        .sideToMove(Color.BLACK)
+        .place(whiteRook, Cell.H1)
+        .place(blackRook, Cell.H8)
+        .build();
+    Move forgedCapture = new Move(Color.BLACK, blackRook, Cell.H8, Cell.H1, null,
+        MoveType.CAPTURE, new Pawn(Color.WHITE, Cell.H1));
+
+    assertThrows(IllegalArgumentException.class, () -> board.makeMove(forgedCapture));
+
+    assertTrue(board.canWhiteCastleKingside());
+    assertTrue(board.isOccupied(Cell.H1));
+    assertTrue(board.isOccupied(Cell.H8));
+  }
+
+  @Test
+  void shouldRejectAMoveForTheWrongSideToMove() {
+    Board board = Board.standard();
+    Pawn blackPawn = (Pawn) board.getPieceAt(Cell.E7).orElseThrow();
+
+    assertThrows(IllegalArgumentException.class,
+        () -> board.makeMove(new Move(Color.BLACK, blackPawn, Cell.E7, Cell.E5, null,
+            MoveType.NORMAL, null)));
+
+    assertEquals(Color.WHITE, board.getSideToMove());
+    assertTrue(board.isOccupied(Cell.E7));
+  }
+
+  @Test
+  void shouldRejectAMoveThatIsNotLegal() {
+    Pawn pawn = new Pawn(Color.WHITE, Cell.E2);
+    Board board = BoardFactory.withPieces(BoardFactory.placement(pawn, Cell.E2));
+
+    assertThrows(IllegalArgumentException.class,
+        () -> board.makeMove(new Move(Color.WHITE, pawn, Cell.E2, Cell.E5, null,
+            MoveType.NORMAL, null)));
+
+    assertTrue(board.isOccupied(Cell.E2));
+    assertTrue(board.getPieceAt(Cell.E5).isEmpty());
+  }
+
+  @Test
+  void shouldAcceptALegalMoveWithCachedPieceMetadata() {
+    Pawn whitePawn = new Pawn(Color.WHITE, Cell.E2);
+    Pawn blackPawn = new Pawn(Color.BLACK, Cell.A7);
+    Board board = BoardFactory.withPieces(
+        BoardFactory.placement(whitePawn, Cell.E2),
+        BoardFactory.placement(blackPawn, Cell.A7));
+    board.makeMove(new Move(Color.WHITE, whitePawn, Cell.E2, Cell.E4, null, MoveType.NORMAL, null));
+    board.makeMove(new Move(Color.BLACK, blackPawn, Cell.A7, Cell.A6, null, MoveType.NORMAL, null));
+
+    board.makeMove(new Move(Color.WHITE, whitePawn, Cell.E4, Cell.E5, null, MoveType.NORMAL, null));
+
+    assertTrue(board.isOccupied(Cell.E5));
+    assertTrue(board.getPieceAt(Cell.E4).isEmpty());
+  }
+
+  @Test
+  void shouldRejectCastlingThroughOccupiedSquares() {
+    Board board = Board.standard();
+    King king = (King) board.getPieceAt(Cell.E1).orElseThrow();
+
+    assertThrows(IllegalArgumentException.class,
+        () -> board.makeMove(new Move(Color.WHITE, king, Cell.E1, Cell.G1, null,
+            MoveType.CASTLE_KINGSIDE, null)));
   }
 
   @Test
@@ -183,9 +331,11 @@ class BoardTest {
   void shouldApplyAndUndoEnPassant() {
     Pawn whitePawn = new Pawn(Color.WHITE, Cell.E5);
     Pawn blackPawn = new Pawn(Color.BLACK, Cell.D7);
-    Board board = BoardFactory.withPieces(
-        BoardFactory.placement(whitePawn, Cell.E5),
-        BoardFactory.placement(blackPawn, Cell.D7));
+    Board board = BoardFactory.position()
+        .sideToMove(Color.BLACK)
+        .place(whitePawn, Cell.E5)
+        .place(blackPawn, Cell.D7)
+        .build();
     board.makeMove(new Move(Color.BLACK, blackPawn, Cell.D7, Cell.D5, null, MoveType.NORMAL, null));
     Move enPassant = new MoveGenerator().generateMoves(board, Cell.E5).stream()
         .filter(move -> move.type() == MoveType.EN_PASSANT)
@@ -196,13 +346,13 @@ class BoardTest {
 
     assertTrue(board.getPieceAt(Cell.D5).isEmpty());
     assertTrue(board.getPieceAt(Cell.D6).orElseThrow() instanceof Pawn);
-    assertEquals(Color.WHITE, board.getSideToMove());
+    assertEquals(Color.BLACK, board.getSideToMove());
 
     board.undoMove();
 
     assertTrue(board.getPieceAt(Cell.E5).orElseThrow() instanceof Pawn);
     assertTrue(board.getPieceAt(Cell.D5).orElseThrow() instanceof Pawn);
     assertEquals(Cell.D6, board.getEnPassantTarget().orElseThrow());
-    assertEquals(Color.BLACK, board.getSideToMove());
+    assertEquals(Color.WHITE, board.getSideToMove());
   }
 }

@@ -124,15 +124,8 @@ final class PseudoLegalMoveGenerator {
       return;
     }
     Cell to = Cell.of(row, column);
-    Move lastMove = board.getLastMove().orElse(null);
     if (board.isOccupied(to)
-        || !to.equals(board.getEnPassantTarget().orElse(null))
-        || lastMove == null
-        || !(lastMove.piece() instanceof Pawn)
-        || lastMove.piece().getColor() == pawn.getColor()
-        || Math.abs(lastMove.from().row() - lastMove.to().row()) != 2
-        || lastMove.to().row() != pawn.getCell().row()
-        || lastMove.to().column() != column) {
+        || !to.equals(board.getEnPassantTarget().orElse(null))) {
       return;
     }
     Piece captured = board.getPieceAt(Cell.of(pawn.getCell().row(), column)).orElse(null);

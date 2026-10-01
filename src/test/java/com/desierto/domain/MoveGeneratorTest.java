@@ -1,6 +1,7 @@
 package com.desierto.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.desierto.domain.pieces.Bishop;
@@ -28,6 +29,14 @@ class MoveGeneratorTest {
 
     assertEquals(Set.of(Cell.E3, Cell.E4), destinations);
     assertTrue(moves.stream().allMatch(move -> move.type() == MoveType.NORMAL));
+  }
+
+  @Test
+  void shouldOnlyCreateLegalMoveApplicationsForTheSideToMove() {
+    Board board = Board.standard();
+
+    assertThrows(IllegalArgumentException.class,
+        () -> moveGenerator.generateLegalMoveApplications(board, Color.BLACK));
   }
 
   @Test
@@ -102,10 +111,13 @@ class MoveGeneratorTest {
   void shouldNotGenerateCastlingWhenKingHasMoved() {
     King king = new King(Color.WHITE, Cell.E1);
     Rook rook = new Rook(Color.WHITE, Cell.H1);
+    Pawn blackPawn = new Pawn(Color.BLACK, Cell.A7);
     Board board = BoardFactory.withPieces(
         BoardFactory.placement(king, Cell.E1),
-        BoardFactory.placement(rook, Cell.H1));
+        BoardFactory.placement(rook, Cell.H1),
+        BoardFactory.placement(blackPawn, Cell.A7));
     board.makeMove(new Move(Color.WHITE, king, Cell.E1, Cell.F1, null, MoveType.NORMAL, null));
+    board.makeMove(new Move(Color.BLACK, blackPawn, Cell.A7, Cell.A6, null, MoveType.NORMAL, null));
     King returnedKing = (King) board.getPieceAt(Cell.F1).orElseThrow();
     board.makeMove(new Move(Color.WHITE, returnedKing, Cell.F1, Cell.E1, null, MoveType.NORMAL, null));
 
@@ -134,9 +146,11 @@ class MoveGeneratorTest {
   void shouldGenerateEnPassantAfterDoublePawnAdvance() {
     Pawn whitePawn = new Pawn(Color.WHITE, Cell.E5);
     Pawn blackPawn = new Pawn(Color.BLACK, Cell.D7);
-    Board board = BoardFactory.withPieces(
-        BoardFactory.placement(whitePawn, Cell.E5),
-        BoardFactory.placement(blackPawn, Cell.D7));
+    Board board = BoardFactory.position()
+        .sideToMove(Color.BLACK)
+        .place(whitePawn, Cell.E5)
+        .place(blackPawn, Cell.D7)
+        .build();
     board.makeMove(new Move(Color.BLACK, blackPawn, Cell.D7, Cell.D5, null, MoveType.NORMAL, null));
 
     List<Move> moves = moveGenerator.generateMoves(board, Cell.E5);
@@ -146,6 +160,22 @@ class MoveGeneratorTest {
             && move.to().equals(Cell.D6)
             && move.capturedPiece() instanceof Pawn
             && move.capturedPiece().getColor() == Color.BLACK));
+  }
+
+  @Test
+  void shouldGenerateEnPassantFromACustomPosition() {
+    Pawn whitePawn = new Pawn(Color.WHITE, Cell.E5);
+    Pawn blackPawn = new Pawn(Color.BLACK, Cell.D5);
+    Board board = BoardFactory.position()
+        .enPassantTarget(Cell.D6)
+        .place(whitePawn, Cell.E5)
+        .place(blackPawn, Cell.D5)
+        .build();
+
+    List<Move> moves = moveGenerator.generateMoves(board, Cell.E5);
+
+    assertTrue(moves.stream().anyMatch(move -> move.type() == MoveType.EN_PASSANT
+        && move.to().equals(Cell.D6)));
   }
 
   @Test

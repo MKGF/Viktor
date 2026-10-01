@@ -32,6 +32,19 @@ public class MoveGenerator {
     return generateLegalMoves(board, color);
   }
 
+  public List<LegalMove> generateLegalMoveApplications(Board board, Color color) {
+    Objects.requireNonNull(board, "board must not be null");
+    Objects.requireNonNull(color, "color must not be null");
+    if (color != board.getSideToMove()) {
+      throw new IllegalArgumentException("Legal moves can only be generated for the side to move");
+    }
+    List<LegalMove> legalMoves = new ArrayList<>();
+    for (Move move : generateLegalMoves(board, color)) {
+      legalMoves.add(new LegalMove(board, move));
+    }
+    return List.copyOf(legalMoves);
+  }
+
   public List<Move> generateLegalMoves(Board board, Color color) {
     Objects.requireNonNull(board, "board must not be null");
     Objects.requireNonNull(color, "color must not be null");
@@ -65,7 +78,7 @@ public class MoveGenerator {
     List<Move> legalMoves = new ArrayList<>();
     for (Move move : candidateMoves) {
       Board resultingBoard = board.copy();
-      resultingBoard.makeMove(move);
+      resultingBoard.applyGeneratedMove(move);
       if (!attackDetector.isKingInCheck(resultingBoard, moverColor)) {
         legalMoves.add(move);
       }
