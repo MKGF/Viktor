@@ -5,43 +5,44 @@ Documento de trabajo para iterar el proyecto desde el estado actual hasta un mot
 ## 1. Base del dominio
 
 - [x] Definir un `Board` que represente el estado completo del tablero.
-- [ ] Rehacer `Move` para incluir origen, destino, pieza, captura, promoción, enroque y en passant.
+- [x] Rehacer `Move` para incluir origen, destino, pieza, captura, promoción, enroque y en passant.
 - [x] Convertir `Cell` en un valor inmutable con `equals`, `hashCode` y validación de coordenadas.
 - [x] Completar `Piece` con color y posición.
-- [ ] Añadir una abstracción común para piezas deslizantes y piezas saltadoras si aporta claridad.
+- [x] Mantener `Move` como objeto de valor y delegar la decisión de tipos de jugada a `MoveGenerator`.
 
 ## 2. Reglas básicas
 
-- [ ] Implementar movimiento legal de peones.
-- [ ] Implementar movimiento legal de caballos.
-- [ ] Implementar movimiento legal de alfiles, torres y dama.
-- [ ] Implementar movimiento legal del rey.
-- [ ] Implementar capturas.
-- [ ] Implementar enroque.
-- [ ] Implementar en passant.
-- [ ] Implementar promoción de peón.
+- [x] Implementar movimiento legal de peones.
+- [x] Implementar movimiento legal de caballos.
+- [x] Implementar movimiento legal de alfiles, torres y dama.
+- [x] Implementar movimiento legal del rey.
+- [x] Implementar capturas.
+- [x] Implementar enroque.
+- [x] Implementar en passant.
+- [x] Implementar promoción de peón.
+- [x] Hacer que `MoveGenerator` construya los tipos especiales de movimiento.
 
 ## 3. Estado de partida
 
-- [ ] Inicializar la posición estándar de ajedrez.
-- [ ] Guardar turno actual.
-- [ ] Guardar derechos de enroque.
-- [ ] Guardar posibilidad de en passant.
-- [ ] Guardar contador de medio-movimientos y número de jugada si hace falta.
+- [x] Inicializar la posición estándar de ajedrez.
+- [x] Guardar turno actual.
+- [x] Guardar derechos de enroque.
+- [x] Guardar posibilidad de en passant.
+- [x] Guardar contador de medio-movimientos y número de jugada si hace falta.
 
 ## 4. Legalidad de jugadas
 
-- [ ] Generar movimientos pseudo-legales.
-- [ ] Filtrar movimientos que dejen al rey en jaque.
-- [ ] Detectar jaque.
-- [ ] Detectar jaque mate.
-- [ ] Detectar ahogado.
+- [x] Generar movimientos pseudo-legales.
+- [x] Filtrar movimientos que dejen al rey en jaque.
+- [x] Detectar jaque.
+- [x] Detectar jaque mate.
+- [x] Detectar ahogado.
 
 ## 5. Aplicación y deshacer
 
-- [ ] Implementar `makeMove`.
-- [ ] Implementar `undoMove`.
-- [ ] Asegurar que una jugada aplicada y deshecha restaura exactamente el estado anterior.
+- [x] Implementar `makeMove`.
+- [x] Implementar `undoMove`.
+- [x] Asegurar que una jugada aplicada y deshecha restaura exactamente el estado anterior.
 
 ## 6. Motor de búsqueda
 
@@ -68,12 +69,12 @@ Documento de trabajo para iterar el proyecto desde el estado actual hasta un mot
 ## 9. Tests
 
 - [x] Test de posición inicial.
-- [ ] Test de movimientos de cada pieza.
+- [x] Test de movimientos de cada pieza.
 - [x] Test de capturas.
-- [ ] Test de enroque.
-- [ ] Test de en passant.
-- [ ] Test de promoción.
-- [ ] Test de jaque, mate y ahogado.
+- [x] Test de enroque.
+- [x] Test de en passant.
+- [x] Test de promoción.
+- [x] Test de jaque, mate y ahogado.
 - [x] Test de `makeMove` / `undoMove`.
 
 ## Orden recomendado

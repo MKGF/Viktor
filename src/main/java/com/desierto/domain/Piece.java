@@ -6,5 +6,9 @@ public interface Piece {
 
   Cell getCell();
 
+  boolean hasMoved();
+
   void setCell(Cell cell);
+
+  void setHasMoved(boolean hasMoved);
 }

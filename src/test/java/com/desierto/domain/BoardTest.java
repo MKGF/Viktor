@@ -19,6 +19,14 @@ class BoardTest {
     assertEquals(32, board.getPieces().size());
     assertEquals(16, board.getPieces(Color.WHITE).size());
     assertEquals(16, board.getPieces(Color.BLACK).size());
+    assertEquals(Color.WHITE, board.getSideToMove());
+    assertTrue(board.canWhiteCastleKingside());
+    assertTrue(board.canWhiteCastleQueenside());
+    assertTrue(board.canBlackCastleKingside());
+    assertTrue(board.canBlackCastleQueenside());
+    assertEquals(0, board.getHalfmoveClock());
+    assertEquals(1, board.getFullmoveNumber());
+    assertTrue(board.getEnPassantTarget().isEmpty());
 
     Piece whiteRook = board.getPieceAt(Cell.A1).orElseThrow();
     Piece whiteKing = board.getPieceAt(Cell.E1).orElseThrow();
@@ -38,15 +46,13 @@ class BoardTest {
 
   @Test
   void shouldPlaceMoveAndRemovePieces() {
-    Board board = new Board();
     Pawn pawn = new Pawn(Color.WHITE, Cell.E2);
-
-    board.placePiece(pawn, Cell.E2);
+    Board board = BoardFactory.withPieces(BoardFactory.placement(pawn, Cell.E2));
 
     assertTrue(board.isOccupied(Cell.E2));
     assertEquals(Cell.E2, pawn.getCell());
 
-    assertTrue(board.movePiece(Cell.E2, Cell.E4).isEmpty());
+    board.makeMove(new Move(Color.WHITE, pawn, Cell.E2, Cell.E4, null, MoveType.NORMAL, null));
     assertFalse(board.isOccupied(Cell.E2));
     assertTrue(board.isOccupied(Cell.E4));
     assertEquals(Cell.E4, pawn.getCell());
@@ -57,18 +63,80 @@ class BoardTest {
 
   @Test
   void shouldReturnCapturedPieceWhenMovingOntoOccupiedSquare() {
-    Board board = new Board();
     Rook rook = new Rook(Color.WHITE, Cell.A1);
     Pawn pawn = new Pawn(Color.BLACK, Cell.A8);
+    Board board = BoardFactory.withPieces(
+        BoardFactory.placement(rook, Cell.A1),
+        BoardFactory.placement(pawn, Cell.A8));
 
-    board.placePiece(rook, Cell.A1);
-    board.placePiece(pawn, Cell.A8);
+    board.makeMove(new Move(Color.WHITE, rook, Cell.A1, Cell.A8, null, MoveType.CAPTURE, pawn));
 
-    Piece captured = board.movePiece(Cell.A1, Cell.A8).orElseThrow();
-
-    assertEquals(pawn, captured);
     assertEquals(Cell.A8, rook.getCell());
     assertFalse(board.isOccupied(Cell.A1));
     assertTrue(board.isOccupied(Cell.A8));
+  }
+
+  @Test
+  void shouldUpdateStateAfterPawnDoubleMove() {
+    Pawn pawn = new Pawn(Color.WHITE, Cell.E2);
+    Board board = BoardFactory.withPieces(BoardFactory.placement(pawn, Cell.E2));
+
+    board.makeMove(new Move(Color.WHITE, pawn, Cell.E2, Cell.E4, null, MoveType.NORMAL, null));
+
+    assertEquals(Color.BLACK, board.getSideToMove());
+    assertEquals(Cell.E3, board.getEnPassantTarget().orElseThrow());
+    assertEquals(0, board.getHalfmoveClock());
+    assertEquals(1, board.getFullmoveNumber());
+  }
+
+  @Test
+  void shouldUpdateFullmoveAfterBlackMove() {
+    Pawn whitePawn = new Pawn(Color.WHITE, Cell.E2);
+    Pawn blackPawn = new Pawn(Color.BLACK, Cell.E7);
+    Board board = BoardFactory.withPieces(
+        BoardFactory.placement(whitePawn, Cell.E2),
+        BoardFactory.placement(blackPawn, Cell.E7));
+
+    board.makeMove(new Move(Color.WHITE, whitePawn, Cell.E2, Cell.E4, null, MoveType.NORMAL, null));
+    board.makeMove(new Move(Color.BLACK, blackPawn, Cell.E7, Cell.E5, null, MoveType.NORMAL, null));
+
+    assertEquals(Color.WHITE, board.getSideToMove());
+    assertEquals(2, board.getFullmoveNumber());
+  }
+
+  @Test
+  void shouldUndoSimpleMove() {
+    Pawn pawn = new Pawn(Color.WHITE, Cell.E2);
+    Board board = BoardFactory.withPieces(BoardFactory.placement(pawn, Cell.E2));
+
+    board.makeMove(new Move(Color.WHITE, pawn, Cell.E2, Cell.E4, null, MoveType.NORMAL, null));
+    board.undoMove();
+
+    assertTrue(board.isOccupied(Cell.E2));
+    assertFalse(board.isOccupied(Cell.E4));
+    assertEquals(Color.WHITE, board.getSideToMove());
+    assertEquals(1, board.getFullmoveNumber());
+    assertTrue(board.getEnPassantTarget().isEmpty());
+  }
+
+  @Test
+  void shouldUndoCastlingMove() {
+    King king = new King(Color.WHITE, Cell.E1);
+    Rook rook = new Rook(Color.WHITE, Cell.H1);
+    Board board = BoardFactory.withPieces(
+        BoardFactory.placement(king, Cell.E1),
+        BoardFactory.placement(rook, Cell.H1));
+
+    Move castle = new Move(Color.WHITE, king, Cell.E1, Cell.G1, null, MoveType.CASTLE_KINGSIDE, null);
+    board.makeMove(castle);
+    board.undoMove();
+
+    assertTrue(board.getPieceAt(Cell.E1).orElseThrow() instanceof King);
+    assertTrue(board.getPieceAt(Cell.H1).orElseThrow() instanceof Rook);
+    assertTrue(board.getPieceAt(Cell.F1).isEmpty());
+    assertTrue(board.getPieceAt(Cell.G1).isEmpty());
+    assertEquals(Color.WHITE, board.getSideToMove());
+    assertTrue(board.canWhiteCastleKingside());
+    assertTrue(board.canWhiteCastleQueenside());
   }
 }

@@ -6,11 +6,7 @@ import com.desierto.domain.pieces.Knight;
 import com.desierto.domain.pieces.Pawn;
 import com.desierto.domain.pieces.Queen;
 import com.desierto.domain.pieces.Rook;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 public class Master {
 
@@ -51,7 +47,7 @@ public class Master {
   }
 
   public void move(Move move) {
-    move.piece.setCell(move.cell);
+    move.piece().setCell(move.to());
     previousMove = move;
   }
 

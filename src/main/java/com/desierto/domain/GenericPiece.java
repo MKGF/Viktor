@@ -6,6 +6,7 @@ public abstract class GenericPiece implements Piece {
 
   private final Color color;
   private Cell cell;
+  private boolean hasMoved;
 
   protected GenericPiece(Color color, Cell cell) {
     this.color = Objects.requireNonNull(color, "color must not be null");
@@ -23,7 +24,17 @@ public abstract class GenericPiece implements Piece {
   }
 
   @Override
+  public boolean hasMoved() {
+    return hasMoved;
+  }
+
+  @Override
   public void setCell(Cell cell) {
     this.cell = Objects.requireNonNull(cell, "cell must not be null");
+  }
+
+  @Override
+  public void setHasMoved(boolean hasMoved) {
+    this.hasMoved = hasMoved;
   }
 }
