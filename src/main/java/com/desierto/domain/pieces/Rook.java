@@ -1,14 +1,12 @@
 package com.desierto.domain.pieces;
 
 import com.desierto.domain.Cell;
-import com.desierto.domain.Piece;
-import java.util.List;
+import com.desierto.domain.Color;
+import com.desierto.domain.GenericPiece;
 
-public class Rook implements Piece {
+public class Rook extends GenericPiece {
 
-  private Cell cell;
-
-  public Rook(Cell cell) {
-    this.cell = cell;
+  public Rook(Color color, Cell cell) {
+    super(color, cell);
   }
 }

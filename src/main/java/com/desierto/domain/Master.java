@@ -21,7 +21,8 @@ public class Master {
   private Move previousMove;
 
   public Master() {
-
+    initPieces();
+    previousMove = null;
   }
 
   private void initPieces() {
@@ -31,16 +32,27 @@ public class Master {
 
   public List<Move> getPossibleMoves(Piece piece, Color color) {
     List<Move> moves;
-    switch (piece) {
-      case Pawn pawn -> moves = getPossiblePawnMoves(pawn, color);
-      case Bishop bishop -> moves = getPossibleBishopMoves(bishop, color);
-      case Knight knight -> moves = getPossibleKnightMoves(knight, color);
-      case Rook rook -> moves = getPossibleRookMoves(rook, color);
-      case Queen queen -> moves = getPossibleQueenMoves(queen, color);
-      case King king -> moves = getPossibleKingMoves(king, color);
-      default -> throw new IllegalArgumentException("Unknown piece type");
+    if (piece instanceof Pawn pawn) {
+      moves = getPossiblePawnMoves(pawn, color);
+    } else if (piece instanceof Bishop bishop) {
+      moves = getPossibleBishopMoves(bishop, color);
+    } else if (piece instanceof Knight knight) {
+      moves = getPossibleKnightMoves(knight, color);
+    } else if (piece instanceof Rook rook) {
+      moves = getPossibleRookMoves(rook, color);
+    } else if (piece instanceof Queen queen) {
+      moves = getPossibleQueenMoves(queen, color);
+    } else if (piece instanceof King king) {
+      moves = getPossibleKingMoves(king, color);
+    } else {
+      throw new IllegalArgumentException("Unknown piece type");
     }
     return moves;
+  }
+
+  public void move(Move move) {
+    move.piece.setCell(move.cell);
+    previousMove = move;
   }
 
   private List<Move> getPossiblePawnMoves(Pawn pawn, Color color) {

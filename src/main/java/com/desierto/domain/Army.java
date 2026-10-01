@@ -13,43 +13,47 @@ import java.util.List;
 
 public class Army {
 
-  public List<Piece> pieces;
+  private final List<Piece> pieces;
 
-  public Color color;
+  public final Color color;
 
   public Army(Color color) {
     this.color = color;
     pieces = new ArrayList<Piece>(16);
     if(color.equals(Color.WHITE)) {
-      pieces.addAll(List.of(new Rook(A1), new Rook(H1)));
-      pieces.addAll(List.of(new Knight(B1), new Knight(G1)));
-      pieces.addAll(List.of(new Bishop(C1), new Bishop(F1)));
-      pieces.add(new Queen(D1));
-      pieces.add(new King(E1));
-      pieces.addAll(List.of(new Pawn(A2),
-          new Pawn(B2),
-          new Pawn(C2),
-          new Pawn(D2),
-          new Pawn(E2),
-          new Pawn(F2),
-          new Pawn(G2),
-          new Pawn(H2)
+      pieces.addAll(List.of(new Rook(Color.WHITE, A1), new Rook(Color.WHITE, H1)));
+      pieces.addAll(List.of(new Knight(Color.WHITE, B1), new Knight(Color.WHITE, G1)));
+      pieces.addAll(List.of(new Bishop(Color.WHITE, C1), new Bishop(Color.WHITE, F1)));
+      pieces.add(new Queen(Color.WHITE, D1));
+      pieces.add(new King(Color.WHITE, E1));
+      pieces.addAll(List.of(new Pawn(Color.WHITE, A2),
+          new Pawn(Color.WHITE, B2),
+          new Pawn(Color.WHITE, C2),
+          new Pawn(Color.WHITE, D2),
+          new Pawn(Color.WHITE, E2),
+          new Pawn(Color.WHITE, F2),
+          new Pawn(Color.WHITE, G2),
+          new Pawn(Color.WHITE, H2)
       ));
     } else {
-      pieces.addAll(List.of(new Rook(A8), new Rook(H8)));
-      pieces.addAll(List.of(new Knight(B8), new Knight(G8)));
-      pieces.addAll(List.of(new Bishop(C8), new Bishop(F8)));
-      pieces.add(new Queen(D8));
-      pieces.add(new King(E8));
-      pieces.addAll(List.of(new Pawn(A7),
-          new Pawn(B7),
-          new Pawn(C7),
-          new Pawn(D7),
-          new Pawn(E7),
-          new Pawn(F7),
-          new Pawn(G7),
-          new Pawn(H7)
+      pieces.addAll(List.of(new Rook(Color.BLACK, A8), new Rook(Color.BLACK, H8)));
+      pieces.addAll(List.of(new Knight(Color.BLACK, B8), new Knight(Color.BLACK, G8)));
+      pieces.addAll(List.of(new Bishop(Color.BLACK, C8), new Bishop(Color.BLACK, F8)));
+      pieces.add(new Queen(Color.BLACK, D8));
+      pieces.add(new King(Color.BLACK, E8));
+      pieces.addAll(List.of(new Pawn(Color.BLACK, A7),
+          new Pawn(Color.BLACK, B7),
+          new Pawn(Color.BLACK, C7),
+          new Pawn(Color.BLACK, D7),
+          new Pawn(Color.BLACK, E7),
+          new Pawn(Color.BLACK, F7),
+          new Pawn(Color.BLACK, G7),
+          new Pawn(Color.BLACK, H7)
       ));
     }
+  }
+
+  public List<Piece> getPieces() {
+    return List.copyOf(pieces);
   }
 }

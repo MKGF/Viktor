@@ -1,14 +1,12 @@
 package com.desierto.domain.pieces;
 
 import com.desierto.domain.Cell;
-import com.desierto.domain.Piece;
-import java.util.List;
+import com.desierto.domain.Color;
+import com.desierto.domain.GenericPiece;
 
-public class Pawn implements Piece {
+public class Pawn extends GenericPiece {
 
-  private Cell cell;
-
-  public Pawn(Cell cell) {
-    this.cell = cell;
+  public Pawn(Color color, Cell cell) {
+    super(color, cell);
   }
 }

@@ -1,6 +1,6 @@
 package com.desierto.domain;
 
-public class Cell {
+public record Cell(int row, int column) {
 
   public static final Cell A1 = new Cell(0, 0);
   public static final Cell A2 = new Cell(1, 0);
@@ -74,13 +74,31 @@ public class Cell {
   public static final Cell H7 = new Cell(6, 7);
   public static final Cell H8 = new Cell(7, 7);
 
-  public Integer row;
-  public Integer column;
-
-  public Cell(Integer row, Integer column) {
-    this.row = row;
-    this.column = column;
+  public Cell {
+    if (row < 0 || row > 7 || column < 0 || column > 7) {
+      throw new IllegalArgumentException("Cell coordinates must be between 0 and 7");
+    }
   }
 
+  public static Cell of(int row, int column) {
+    return new Cell(row, column);
+  }
 
+  public static Cell fromAlgebraic(String notation) {
+    if (notation == null || notation.length() != 2) {
+      throw new IllegalArgumentException("Invalid algebraic notation");
+    }
+    char file = Character.toUpperCase(notation.charAt(0));
+    char rank = notation.charAt(1);
+    if (file < 'A' || file > 'H' || rank < '1' || rank > '8') {
+      throw new IllegalArgumentException("Invalid algebraic notation");
+    }
+    int column = file - 'A';
+    int row = rank - '1';
+    return new Cell(row, column);
+  }
+
+  public String toAlgebraic() {
+    return String.valueOf((char) ('A' + column)) + (row + 1);
+  }
 }
