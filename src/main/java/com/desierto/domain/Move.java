@@ -1,6 +1,10 @@
 package com.desierto.domain;
 
 import java.util.Objects;
+import com.desierto.domain.pieces.Bishop;
+import com.desierto.domain.pieces.Knight;
+import com.desierto.domain.pieces.Queen;
+import com.desierto.domain.pieces.Rook;
 
 public record Move(
     Color color,
@@ -18,17 +22,31 @@ public record Move(
     Objects.requireNonNull(from, "from must not be null");
     Objects.requireNonNull(to, "to must not be null");
     Objects.requireNonNull(type, "type must not be null");
-    if (promotionPiece != null && type != MoveType.PROMOTION && type != MoveType.CAPTURE_PROMOTION) {
-      throw new IllegalArgumentException("Promotion piece is only valid for promotion moves");
+    boolean promotion = type == MoveType.PROMOTION || type == MoveType.CAPTURE_PROMOTION;
+    boolean capture = type == MoveType.CAPTURE
+        || type == MoveType.CAPTURE_PROMOTION
+        || type == MoveType.EN_PASSANT;
+    if (promotion != (promotionPiece != null)) {
+      throw new IllegalArgumentException("Promotion moves must include a promotion piece");
     }
-    if (capturedPiece != null
-        && type != MoveType.CAPTURE
-        && type != MoveType.CAPTURE_PROMOTION
-        && type != MoveType.EN_PASSANT) {
-      throw new IllegalArgumentException("Captured piece is only valid for capture moves");
+    if (capture != (capturedPiece != null)) {
+      throw new IllegalArgumentException("Capture moves must include a captured piece");
     }
     if (piece.getColor() != color) {
       throw new IllegalArgumentException("Move color must match piece color");
+    }
+    if (promotionPiece != null
+        && (!(promotionPiece instanceof Queen)
+        && !(promotionPiece instanceof Rook)
+        && !(promotionPiece instanceof Bishop)
+        && !(promotionPiece instanceof Knight))) {
+      throw new IllegalArgumentException("Promotion piece must be a queen, rook, bishop, or knight");
+    }
+    if (promotionPiece != null && promotionPiece.getColor() != color) {
+      throw new IllegalArgumentException("Promotion piece color must match move color");
+    }
+    if (capturedPiece != null && capturedPiece.getColor() == color) {
+      throw new IllegalArgumentException("Captured piece must have the opposite color");
     }
   }
 

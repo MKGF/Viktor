@@ -61,5 +61,12 @@ class MoveTest {
         () -> new Move(Color.WHITE, pawn, Cell.E2, Cell.E4, queen, MoveType.NORMAL, null));
     assertThrows(IllegalArgumentException.class,
         () -> new Move(Color.WHITE, pawn, Cell.E2, Cell.E4, null, MoveType.NORMAL, captured));
+    assertThrows(IllegalArgumentException.class,
+        () -> new Move(Color.WHITE, pawn, Cell.E7, Cell.E8, null, MoveType.PROMOTION, null));
+    assertThrows(IllegalArgumentException.class,
+        () -> new Move(Color.WHITE, pawn, Cell.E2, Cell.E4, null, MoveType.CAPTURE, null));
+    assertThrows(IllegalArgumentException.class,
+        () -> new Move(Color.WHITE, pawn, Cell.E7, Cell.E8, new Pawn(Color.WHITE, Cell.E8),
+            MoveType.PROMOTION, null));
   }
 }

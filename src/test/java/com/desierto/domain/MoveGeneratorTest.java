@@ -68,6 +68,21 @@ class MoveGeneratorTest {
   }
 
   @Test
+  void shouldGenerateBishopQueenAndKingMoves() {
+    Bishop bishop = new Bishop(Color.WHITE, Cell.D4);
+    Board bishopBoard = BoardFactory.withPieces(BoardFactory.placement(bishop, Cell.D4));
+    assertEquals(13, moveGenerator.generateMoves(bishopBoard, Cell.D4).size());
+
+    Queen queen = new Queen(Color.WHITE, Cell.D4);
+    Board queenBoard = BoardFactory.withPieces(BoardFactory.placement(queen, Cell.D4));
+    assertEquals(27, moveGenerator.generateMoves(queenBoard, Cell.D4).size());
+
+    King king = new King(Color.WHITE, Cell.D4);
+    Board kingBoard = BoardFactory.withPieces(BoardFactory.placement(king, Cell.D4));
+    assertEquals(8, moveGenerator.generateMoves(kingBoard, Cell.D4).size());
+  }
+
+  @Test
   void shouldGenerateCastlingMovesWhenPathIsClear() {
     King king = new King(Color.WHITE, Cell.E1);
     Rook kingsideRook = new Rook(Color.WHITE, Cell.H1);
@@ -90,12 +105,29 @@ class MoveGeneratorTest {
     Board board = BoardFactory.withPieces(
         BoardFactory.placement(king, Cell.E1),
         BoardFactory.placement(rook, Cell.H1));
-    king.setHasMoved(true);
+    board.makeMove(new Move(Color.WHITE, king, Cell.E1, Cell.F1, null, MoveType.NORMAL, null));
+    King returnedKing = (King) board.getPieceAt(Cell.F1).orElseThrow();
+    board.makeMove(new Move(Color.WHITE, returnedKing, Cell.F1, Cell.E1, null, MoveType.NORMAL, null));
 
     List<Move> moves = moveGenerator.generateMoves(board, Cell.E1);
 
     assertTrue(moves.stream().noneMatch(move -> move.type() == MoveType.CASTLE_KINGSIDE));
     assertTrue(moves.stream().noneMatch(move -> move.type() == MoveType.CASTLE_QUEENSIDE));
+  }
+
+  @Test
+  void shouldNotGenerateCastlingThroughAnAttackedSquare() {
+    King king = new King(Color.WHITE, Cell.E1);
+    Rook whiteRook = new Rook(Color.WHITE, Cell.H1);
+    Rook blackRook = new Rook(Color.BLACK, Cell.F8);
+    Board board = BoardFactory.withPieces(
+        BoardFactory.placement(king, Cell.E1),
+        BoardFactory.placement(whiteRook, Cell.H1),
+        BoardFactory.placement(blackRook, Cell.F8));
+
+    List<Move> moves = moveGenerator.generateMoves(board, Cell.E1);
+
+    assertTrue(moves.stream().noneMatch(move -> move.type() == MoveType.CASTLE_KINGSIDE));
   }
 
   @Test
@@ -112,7 +144,8 @@ class MoveGeneratorTest {
     assertTrue(moves.stream().anyMatch(move ->
         move.type() == MoveType.EN_PASSANT
             && move.to().equals(Cell.D6)
-            && move.capturedPiece().equals(blackPawn)));
+            && move.capturedPiece() instanceof Pawn
+            && move.capturedPiece().getColor() == Color.BLACK));
   }
 
   @Test

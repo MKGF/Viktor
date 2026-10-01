@@ -8,7 +8,7 @@ public interface Piece {
 
   boolean hasMoved();
 
-  void setCell(Cell cell);
+  Piece movedTo(Cell cell);
 
-  void setHasMoved(boolean hasMoved);
+  Piece copy();
 }

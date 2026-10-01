@@ -55,7 +55,8 @@ class BoardTest {
     board.makeMove(new Move(Color.WHITE, pawn, Cell.E2, Cell.E4, null, MoveType.NORMAL, null));
     assertFalse(board.isOccupied(Cell.E2));
     assertTrue(board.isOccupied(Cell.E4));
-    assertEquals(Cell.E4, pawn.getCell());
+    assertEquals(Cell.E2, pawn.getCell());
+    assertEquals(Cell.E4, board.getPieceAt(Cell.E4).orElseThrow().getCell());
 
     assertTrue(board.removePiece(Cell.E4).isPresent());
     assertFalse(board.isOccupied(Cell.E4));
@@ -71,9 +72,27 @@ class BoardTest {
 
     board.makeMove(new Move(Color.WHITE, rook, Cell.A1, Cell.A8, null, MoveType.CAPTURE, pawn));
 
-    assertEquals(Cell.A8, rook.getCell());
+    assertEquals(Cell.A1, rook.getCell());
+    assertEquals(Cell.A8, board.getPieceAt(Cell.A8).orElseThrow().getCell());
     assertFalse(board.isOccupied(Cell.A1));
     assertTrue(board.isOccupied(Cell.A8));
+  }
+
+  @Test
+  void shouldUseTheBoardPieceWhenUpdatingCastlingRightsAfterACapture() {
+    Rook whiteRook = new Rook(Color.WHITE, Cell.H1);
+    Rook blackRook = new Rook(Color.BLACK, Cell.H8);
+    Board board = BoardFactory.withPieces(
+        BoardFactory.placement(whiteRook, Cell.H1),
+        BoardFactory.placement(blackRook, Cell.H8));
+    Move captureWithIncorrectMetadata = new Move(Color.BLACK, blackRook, Cell.H8, Cell.H1, null,
+        MoveType.CAPTURE, new Pawn(Color.WHITE, Cell.H1));
+
+    board.makeMove(captureWithIncorrectMetadata);
+
+    assertFalse(board.canWhiteCastleKingside());
+    assertEquals(Cell.H1, board.getLastMove().orElseThrow().piece().getCell());
+    assertTrue(board.getLastMove().orElseThrow().capturedPiece() instanceof Rook);
   }
 
   @Test
@@ -138,5 +157,52 @@ class BoardTest {
     assertEquals(Color.WHITE, board.getSideToMove());
     assertTrue(board.canWhiteCastleKingside());
     assertTrue(board.canWhiteCastleQueenside());
+  }
+
+  @Test
+  void shouldApplyAndUndoPromotion() {
+    Pawn pawn = new Pawn(Color.WHITE, Cell.E7);
+    Board board = BoardFactory.withPieces(BoardFactory.placement(pawn, Cell.E7));
+    Move promotion = new Move(Color.WHITE, pawn, Cell.E7, Cell.E8,
+        new Queen(Color.WHITE, Cell.E8), MoveType.PROMOTION, null);
+
+    board.makeMove(promotion);
+
+    assertTrue(board.getPieceAt(Cell.E8).orElseThrow() instanceof Queen);
+    assertTrue(board.getPieceAt(Cell.E7).isEmpty());
+    assertEquals(Color.BLACK, board.getSideToMove());
+
+    board.undoMove();
+
+    assertTrue(board.getPieceAt(Cell.E7).orElseThrow() instanceof Pawn);
+    assertTrue(board.getPieceAt(Cell.E8).isEmpty());
+    assertEquals(Color.WHITE, board.getSideToMove());
+  }
+
+  @Test
+  void shouldApplyAndUndoEnPassant() {
+    Pawn whitePawn = new Pawn(Color.WHITE, Cell.E5);
+    Pawn blackPawn = new Pawn(Color.BLACK, Cell.D7);
+    Board board = BoardFactory.withPieces(
+        BoardFactory.placement(whitePawn, Cell.E5),
+        BoardFactory.placement(blackPawn, Cell.D7));
+    board.makeMove(new Move(Color.BLACK, blackPawn, Cell.D7, Cell.D5, null, MoveType.NORMAL, null));
+    Move enPassant = new MoveGenerator().generateMoves(board, Cell.E5).stream()
+        .filter(move -> move.type() == MoveType.EN_PASSANT)
+        .findFirst()
+        .orElseThrow();
+
+    board.makeMove(enPassant);
+
+    assertTrue(board.getPieceAt(Cell.D5).isEmpty());
+    assertTrue(board.getPieceAt(Cell.D6).orElseThrow() instanceof Pawn);
+    assertEquals(Color.WHITE, board.getSideToMove());
+
+    board.undoMove();
+
+    assertTrue(board.getPieceAt(Cell.E5).orElseThrow() instanceof Pawn);
+    assertTrue(board.getPieceAt(Cell.D5).orElseThrow() instanceof Pawn);
+    assertEquals(Cell.D6, board.getEnPassantTarget().orElseThrow());
+    assertEquals(Color.BLACK, board.getSideToMove());
   }
 }

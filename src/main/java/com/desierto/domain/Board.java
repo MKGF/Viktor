@@ -1,10 +1,7 @@
 package com.desierto.domain;
 
-import com.desierto.domain.pieces.Bishop;
 import com.desierto.domain.pieces.King;
-import com.desierto.domain.pieces.Knight;
 import com.desierto.domain.pieces.Pawn;
-import com.desierto.domain.pieces.Queen;
 import com.desierto.domain.pieces.Rook;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +11,7 @@ import java.util.Optional;
 public class Board {
 
   private final Piece[][] squares;
-  private final List<Board> history;
+  private final PositionHistory history;
   private Move lastMove;
   private Color sideToMove;
   private boolean whiteKingsideCastleRight;
@@ -27,7 +24,7 @@ public class Board {
 
   public Board() {
     this.squares = new Piece[8][8];
-    this.history = new ArrayList<>();
+    this.history = new PositionHistory();
     this.sideToMove = Color.WHITE;
     this.whiteKingsideCastleRight = true;
     this.whiteQueensideCastleRight = true;
@@ -59,8 +56,7 @@ public class Board {
       for (int column = 0; column < 8; column++) {
         Piece piece = squares[row][column];
         if (piece != null) {
-          Piece cloned = clonePiece(piece);
-          copy.squares[row][column] = cloned;
+          copy.squares[row][column] = piece.copy();
         }
       }
     }
@@ -83,8 +79,10 @@ public class Board {
     if (squares[cell.row()][cell.column()] != null) {
       throw new IllegalStateException("Square " + cell.toAlgebraic() + " is already occupied");
     }
+    if (!piece.getCell().equals(cell)) {
+      throw new IllegalArgumentException("Piece position must match the target square");
+    }
     squares[cell.row()][cell.column()] = piece;
-    piece.setCell(cell);
   }
 
   public Optional<Piece> removePiece(Cell cell) {
@@ -96,41 +94,17 @@ public class Board {
 
   public void makeMove(Move move) {
     Objects.requireNonNull(move, "move must not be null");
-    history.add(copy());
+    history.save(copy());
     try {
       applyMoveInternal(move);
     } catch (RuntimeException ex) {
-      history.remove(history.size() - 1);
+      history.restore();
       throw ex;
     }
   }
 
   public void undoMove() {
-    if (history.isEmpty()) {
-      throw new IllegalStateException("No move to undo");
-    }
-    Board snapshot = history.remove(history.size() - 1);
-    restoreFrom(snapshot);
-  }
-
-  private Optional<Piece> movePieceInternal(Cell from, Cell to) {
-    validateCell(from);
-    validateCell(to);
-
-    Piece piece = squares[from.row()][from.column()];
-    if (piece == null) {
-      throw new IllegalStateException("No piece on square " + from.toAlgebraic());
-    }
-
-    Piece captured = squares[to.row()][to.column()];
-    squares[from.row()][from.column()] = null;
-    squares[to.row()][to.column()] = piece;
-    piece.setCell(to);
-    piece.setHasMoved(true);
-    lastMove = new Move(piece.getColor(), piece, from, to, null,
-        captured == null ? MoveType.NORMAL : MoveType.CAPTURE, captured);
-    updateStateAfterMove(lastMove);
-    return Optional.ofNullable(captured);
+    restoreFrom(history.restore());
   }
 
   public Optional<Move> getLastMove() {
@@ -182,7 +156,7 @@ public class Board {
     }
 
     switch (move.type()) {
-      case NORMAL, CAPTURE -> movePieceInternal(move.from(), move.to());
+      case NORMAL, CAPTURE -> applyRegularMove(move, piece);
       case PROMOTION, CAPTURE_PROMOTION -> applyPromotionMove(move, piece);
       case EN_PASSANT -> applyEnPassantMove(move, piece);
       case CASTLE_KINGSIDE -> applyCastleMove(move, piece, true);
@@ -230,8 +204,7 @@ public class Board {
       for (int column = 0; column < 8; column++) {
         Piece piece = snapshot.squares[row][column];
         if (piece != null) {
-          Piece cloned = clonePiece(piece);
-          squares[row][column] = cloned;
+          squares[row][column] = piece.copy();
         }
       }
     }
@@ -246,55 +219,96 @@ public class Board {
     fullmoveNumber = snapshot.fullmoveNumber;
   }
 
-  private void applyPromotionMove(Move move, Piece pawn) {
+  private void applyRegularMove(Move move, Piece piece) {
+    Piece target = squares[move.to().row()][move.to().column()];
+    if (move.type() == MoveType.NORMAL && target != null) {
+      throw new IllegalArgumentException("A normal move cannot capture a piece");
+    }
+    if (move.type() == MoveType.CAPTURE && (target == null || target.getColor() == piece.getColor())) {
+      throw new IllegalArgumentException("A capture move must capture an opposing piece");
+    }
     squares[move.from().row()][move.from().column()] = null;
-    squares[move.to().row()][move.to().column()] = clonePromotionPiece(move);
-    squares[move.to().row()][move.to().column()].setHasMoved(true);
-    lastMove = move;
-    updateStateAfterMove(move);
+    Piece movedPiece = piece.movedTo(move.to());
+    squares[move.to().row()][move.to().column()] = movedPiece;
+    recordAppliedMove(move, movedPiece, target);
+    updateStateAfterMove(piece, move.from(), move.to(), target);
+  }
+
+  private void applyPromotionMove(Move move, Piece pawn) {
+    if (!(pawn instanceof Pawn)) {
+      throw new IllegalArgumentException("Only pawns can promote");
+    }
+    Piece target = squares[move.to().row()][move.to().column()];
+    if (move.type() == MoveType.PROMOTION && target != null) {
+      throw new IllegalArgumentException("A promotion move cannot capture a piece");
+    }
+    if (move.type() == MoveType.CAPTURE_PROMOTION
+        && (target == null || target.getColor() == pawn.getColor())) {
+      throw new IllegalArgumentException("A capture promotion must capture an opposing piece");
+    }
+    squares[move.from().row()][move.from().column()] = null;
+    Piece promotedPiece = move.promotionPiece().movedTo(move.to());
+    squares[move.to().row()][move.to().column()] = promotedPiece;
+    recordAppliedMove(move, promotedPiece, target);
+    updateStateAfterMove(pawn, move.from(), move.to(), target);
   }
 
   private void applyEnPassantMove(Move move, Piece pawn) {
+    if (!(pawn instanceof Pawn)) {
+      throw new IllegalArgumentException("Only pawns can capture en passant");
+    }
+    if (squares[move.to().row()][move.to().column()] != null) {
+      throw new IllegalArgumentException("The en passant target square must be empty");
+    }
     int capturedRow = move.from().row();
     int capturedColumn = move.to().column();
+    Piece captured = squares[capturedRow][capturedColumn];
+    if (!(captured instanceof Pawn) || captured.getColor() == pawn.getColor()) {
+      throw new IllegalArgumentException("En passant must capture an opposing pawn");
+    }
     squares[capturedRow][capturedColumn] = null;
     squares[move.from().row()][move.from().column()] = null;
-    squares[move.to().row()][move.to().column()] = pawn;
-    pawn.setCell(move.to());
-    pawn.setHasMoved(true);
-    lastMove = move;
-    updateStateAfterMove(move);
+    Piece movedPawn = pawn.movedTo(move.to());
+    squares[move.to().row()][move.to().column()] = movedPawn;
+    recordAppliedMove(move, movedPawn, captured);
+    updateStateAfterMove(pawn, move.from(), move.to(), captured);
   }
 
   private void applyCastleMove(Move move, Piece king, boolean kingside) {
+    if (!(king instanceof King)) {
+      throw new IllegalArgumentException("Only kings can castle");
+    }
     int rookFromColumn = kingside ? 7 : 0;
     int rookToColumn = kingside ? 5 : 3;
     Piece rook = squares[move.from().row()][rookFromColumn];
-    if (rook == null) {
+    if (!(rook instanceof Rook) || rook.getColor() != king.getColor()) {
       throw new IllegalStateException("No rook available for castling");
     }
     squares[move.from().row()][move.from().column()] = null;
-    squares[move.to().row()][move.to().column()] = king;
-    king.setCell(move.to());
-    king.setHasMoved(true);
+    Piece movedKing = king.movedTo(move.to());
+    squares[move.to().row()][move.to().column()] = movedKing;
     squares[move.from().row()][rookFromColumn] = null;
-    squares[move.from().row()][rookToColumn] = rook;
-    rook.setCell(Cell.of(move.from().row(), rookToColumn));
-    rook.setHasMoved(true);
-    lastMove = move;
-    updateStateAfterMove(move);
+    squares[move.from().row()][rookToColumn] = rook.movedTo(Cell.of(move.from().row(), rookToColumn));
+    recordAppliedMove(move, movedKing, null);
+    updateStateAfterMove(king, move.from(), move.to(), null);
   }
 
-  private void updateStateAfterMove(Move move) {
-    updateCastlingRights(move);
-    updateEnPassantTarget(move);
-    updateClocks(move);
-    sideToMove = sideToMove == Color.WHITE ? Color.BLACK : Color.WHITE;
+  private void recordAppliedMove(Move requestedMove, Piece movedPiece, Piece capturedPiece) {
+    Piece promotionPiece = requestedMove.isPromotion() ? movedPiece : null;
+    lastMove = new Move(movedPiece.getColor(), movedPiece, requestedMove.from(), requestedMove.to(),
+        promotionPiece, requestedMove.type(), capturedPiece);
   }
 
-  private void updateCastlingRights(Move move) {
-    if (move.piece() instanceof King) {
-      if (move.color() == Color.WHITE) {
+  private void updateStateAfterMove(Piece movedPiece, Cell from, Cell to, Piece capturedPiece) {
+    updateCastlingRights(movedPiece, from, to, capturedPiece);
+    updateEnPassantTarget(movedPiece, from, to);
+    updateClocks(movedPiece, capturedPiece);
+    sideToMove = sideToMove.opposite();
+  }
+
+  private void updateCastlingRights(Piece movedPiece, Cell from, Cell to, Piece capturedPiece) {
+    if (movedPiece instanceof King) {
+      if (movedPiece.getColor() == Color.WHITE) {
         whiteKingsideCastleRight = false;
         whiteQueensideCastleRight = false;
       } else {
@@ -302,96 +316,55 @@ public class Board {
         blackQueensideCastleRight = false;
       }
     }
-    if (move.piece() instanceof Rook) {
-      if (move.from().equals(Cell.A1)) {
+    if (movedPiece instanceof Rook) {
+      if (from.equals(Cell.A1)) {
         whiteQueensideCastleRight = false;
-      } else if (move.from().equals(Cell.H1)) {
+      } else if (from.equals(Cell.H1)) {
         whiteKingsideCastleRight = false;
-      } else if (move.from().equals(Cell.A8)) {
+      } else if (from.equals(Cell.A8)) {
         blackQueensideCastleRight = false;
-      } else if (move.from().equals(Cell.H8)) {
+      } else if (from.equals(Cell.H8)) {
         blackKingsideCastleRight = false;
       }
     }
-    if (move.capturedPiece() instanceof Rook) {
-      if (move.to().equals(Cell.A1)) {
+    if (capturedPiece instanceof Rook) {
+      if (to.equals(Cell.A1)) {
         whiteQueensideCastleRight = false;
-      } else if (move.to().equals(Cell.H1)) {
+      } else if (to.equals(Cell.H1)) {
         whiteKingsideCastleRight = false;
-      } else if (move.to().equals(Cell.A8)) {
+      } else if (to.equals(Cell.A8)) {
         blackQueensideCastleRight = false;
-      } else if (move.to().equals(Cell.H8)) {
+      } else if (to.equals(Cell.H8)) {
         blackKingsideCastleRight = false;
       }
     }
   }
 
-  private void updateEnPassantTarget(Move move) {
+  private void updateEnPassantTarget(Piece movedPiece, Cell from, Cell to) {
     enPassantTarget = null;
-    if (move.piece() instanceof Pawn && Math.abs(move.from().row() - move.to().row()) == 2) {
-      int row = (move.from().row() + move.to().row()) / 2;
-      enPassantTarget = Cell.of(row, move.from().column());
+    if (movedPiece instanceof Pawn && Math.abs(from.row() - to.row()) == 2) {
+      int row = (from.row() + to.row()) / 2;
+      enPassantTarget = Cell.of(row, from.column());
     }
   }
 
-  private void updateClocks(Move move) {
-    if (move.piece() instanceof Pawn || move.isCapture()) {
+  private void updateClocks(Piece movedPiece, Piece capturedPiece) {
+    if (movedPiece instanceof Pawn || capturedPiece != null) {
       halfmoveClock = 0;
     } else {
       halfmoveClock++;
     }
-    if (move.color() == Color.BLACK) {
+    if (movedPiece.getColor() == Color.BLACK) {
       fullmoveNumber++;
     }
   }
 
-  private Piece clonePiece(Piece piece) {
-    Piece cloned;
-    if (piece instanceof Pawn pawn) {
-      cloned = new Pawn(pawn.getColor(), pawn.getCell());
-    } else if (piece instanceof Knight knight) {
-      cloned = new Knight(knight.getColor(), knight.getCell());
-    } else if (piece instanceof Bishop bishop) {
-      cloned = new Bishop(bishop.getColor(), bishop.getCell());
-    } else if (piece instanceof Rook rook) {
-      cloned = new Rook(rook.getColor(), rook.getCell());
-    } else if (piece instanceof Queen queen) {
-      cloned = new Queen(queen.getColor(), queen.getCell());
-    } else if (piece instanceof King king) {
-      cloned = new King(king.getColor(), king.getCell());
-    } else {
-      throw new IllegalArgumentException("Unknown piece type");
-    }
-    cloned.setHasMoved(piece.hasMoved());
-    return cloned;
-  }
-
   private Move copyMove(Move move, Board targetBoard) {
     Piece copiedPiece = targetBoard.getPieceAt(move.to()).orElse(null);
-    Piece copiedCaptured = move.capturedPiece() == null ? null : clonePiece(move.capturedPiece());
-    Piece copiedPromotion = move.promotionPiece() == null ? null : clonePromotionPiece(move);
-    return new Move(move.color(), copiedPiece == null ? clonePiece(move.piece()) : copiedPiece,
+    Piece copiedCaptured = move.capturedPiece() == null ? null : move.capturedPiece().copy();
+    Piece copiedPromotion = move.promotionPiece() == null ? null : move.promotionPiece().copy();
+    return new Move(move.color(), copiedPiece == null ? move.piece().copy() : copiedPiece,
         move.from(), move.to(), copiedPromotion, move.type(), copiedCaptured);
-  }
-
-  private Piece clonePromotionPiece(Move move) {
-    Piece promotionPiece = move.promotionPiece();
-    if (promotionPiece == null) {
-      return null;
-    }
-    if (promotionPiece instanceof Queen) {
-      return new Queen(promotionPiece.getColor(), move.to());
-    }
-    if (promotionPiece instanceof Rook) {
-      return new Rook(promotionPiece.getColor(), move.to());
-    }
-    if (promotionPiece instanceof Bishop) {
-      return new Bishop(promotionPiece.getColor(), move.to());
-    }
-    if (promotionPiece instanceof Knight) {
-      return new Knight(promotionPiece.getColor(), move.to());
-    }
-    throw new IllegalArgumentException("Unknown promotion piece type");
   }
 
   private void validateCell(Cell cell) {
@@ -403,19 +376,6 @@ public class Board {
 
   @Override
   public String toString() {
-    StringBuilder builder = new StringBuilder();
-    for (int row = 7; row >= 0; row--) {
-      builder.append(row + 1).append(' ');
-      for (int column = 0; column < 8; column++) {
-        Piece piece = squares[row][column];
-        builder.append(piece == null ? "." : piece.getClass().getSimpleName().charAt(0));
-        if (column < 7) {
-          builder.append(' ');
-        }
-      }
-      builder.append(System.lineSeparator());
-    }
-    builder.append("  A B C D E F G H");
-    return builder.toString();
+    return BoardRenderer.render(this);
   }
 }

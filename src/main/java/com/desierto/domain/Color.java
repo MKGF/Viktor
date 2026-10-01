@@ -2,5 +2,9 @@ package com.desierto.domain;
 
 public enum Color {
   WHITE,
-  BLACK
+  BLACK;
+
+  public Color opposite() {
+    return this == WHITE ? BLACK : WHITE;
+  }
 }

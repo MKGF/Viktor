@@ -5,12 +5,17 @@ import java.util.Objects;
 public abstract class GenericPiece implements Piece {
 
   private final Color color;
-  private Cell cell;
-  private boolean hasMoved;
+  private final Cell cell;
+  private final boolean hasMoved;
 
   protected GenericPiece(Color color, Cell cell) {
+    this(color, cell, false);
+  }
+
+  protected GenericPiece(Color color, Cell cell, boolean hasMoved) {
     this.color = Objects.requireNonNull(color, "color must not be null");
     this.cell = Objects.requireNonNull(cell, "cell must not be null");
+    this.hasMoved = hasMoved;
   }
 
   @Override
@@ -29,12 +34,14 @@ public abstract class GenericPiece implements Piece {
   }
 
   @Override
-  public void setCell(Cell cell) {
-    this.cell = Objects.requireNonNull(cell, "cell must not be null");
+  public final Piece movedTo(Cell cell) {
+    return recreate(Objects.requireNonNull(cell, "cell must not be null"), true);
   }
 
   @Override
-  public void setHasMoved(boolean hasMoved) {
-    this.hasMoved = hasMoved;
+  public final Piece copy() {
+    return recreate(cell, hasMoved);
   }
+
+  protected abstract Piece recreate(Cell cell, boolean hasMoved);
 }
