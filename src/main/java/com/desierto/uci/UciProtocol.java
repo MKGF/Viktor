@@ -21,12 +21,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class UciProtocol {
   private final PrintStream output;
   private final PrintStream errors;
+  private UciSessionLog sessionLog;
   private Board board = Board.standard();
   private SearchTask active;
 
   UciProtocol(PrintStream output, PrintStream errors) {
+    this(output, errors, null);
+  }
+
+  UciProtocol(PrintStream output, PrintStream errors, UciSessionLog sessionLog) {
     this.output = Objects.requireNonNull(output, "output must not be null");
     this.errors = Objects.requireNonNull(errors, "errors must not be null");
+    this.sessionLog = sessionLog;
   }
 
   void run(BufferedReader input) throws IOException {
@@ -50,17 +56,21 @@ final class UciProtocol {
             case "ucinewgame" -> {
               stop(false);
               board = Board.standard();
+              recordLog("game:\n  event=new_game");
             }
             case "position" -> {
               stop(false);
               Board next = UciPosition.parse(tokens);
               String diagnostic = SearchDiagnostics.position(next, "received");
               board = next;
-              logDiagnostic(diagnostic);
+              logDiagnostic(diagnostic, "\n  input=" + line + "\n  board:\n"
+                  + next.toString().lines().map(row -> "    " + row)
+                      .collect(java.util.stream.Collectors.joining("\n")));
             }
             case "go" -> {
               stop(false);
               GoOptions options = GoOptions.parse(tokens, board.getSideToMove());
+              recordLog("search:\n  input=" + line);
               active = new SearchTask(board.copy(), options);
               active.thread.start();
             }
@@ -73,19 +83,54 @@ final class UciProtocol {
           }
         } catch (IllegalArgumentException ex) {
           output.println("info string Error: " + ex.getMessage());
+          recordLog("error:\n  input=" + line + "\n  message=" + ex.getMessage());
           if (tokens[0].equals("go")) {
             output.println("bestmove 0000");
           }
         }
       }
     } finally {
-      stop(true);
+      try {
+        stop(true);
+      } finally {
+        recordLog("session:\n  event=end");
+      }
     }
   }
 
   private synchronized void logDiagnostic(String diagnostic) {
+    logDiagnostic(diagnostic, "");
+  }
+
+  private synchronized void logDiagnostic(String diagnostic, String logOnlyDetails) {
     errors.println(diagnostic);
     diagnostic.lines().forEach(line -> output.println("info string " + line));
+    String formatted = diagnostic.lines()
+        .flatMap(line -> line.startsWith("  side=")
+            ? java.util.Arrays.stream(line.trim().split(" ")).map(field -> "  " + field)
+            : java.util.stream.Stream.of(line))
+        .collect(java.util.stream.Collectors.joining("\n"));
+    recordLog(formatted + logOnlyDetails);
+  }
+
+  private synchronized void recordLog(String event) {
+    if (sessionLog == null) {
+      return;
+    }
+    try {
+      sessionLog.record(event);
+    } catch (IOException | SecurityException ex) {
+      UciSessionLog failedLog = sessionLog;
+      sessionLog = null;
+      try {
+        failedLog.close();
+      } catch (IOException closeFailure) {
+        ex.addSuppressed(closeFailure);
+      }
+      String warning = "Warning: cannot write Viktor log: " + ex;
+      errors.println(warning);
+      output.println("info string " + warning);
+    }
   }
 
   private void stop(boolean suppressOutput) throws IOException {
@@ -164,6 +209,7 @@ final class UciProtocol {
       } catch (RuntimeException ex) {
         errors.println("UCI search failed:");
         ex.printStackTrace(errors);
+        recordLog("error:\n  event=search_failed\n  message=" + ex);
         if (!suppressOutput.get()) {
           output.println("info string Search failed: " + ex.getClass().getSimpleName());
           output.println("bestmove 0000");
@@ -213,6 +259,12 @@ final class UciProtocol {
           : " pv " + String.join(" ", result.trace().principalVariation());
       output.println("info depth " + result.depth() + " score " + scoreText
           + " nodes " + result.nodes() + " time " + elapsed + pv);
+      recordLog("iteration:\n  depth=" + result.depth()
+          + "\n  score=" + scoreText.replace(' ', ':')
+          + "\n  score_perspective=" + result.perspective().name().toLowerCase(java.util.Locale.ROOT)
+          + "\n  nodes=" + result.nodes() + "\n  elapsed_ms=" + elapsed
+          + "\n  pv=" + (result.trace().principalVariation().isEmpty()
+              ? "unavailable" : String.join(" ", result.trace().principalVariation())));
     }
   }
 }

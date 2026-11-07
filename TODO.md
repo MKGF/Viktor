@@ -143,6 +143,8 @@ integración UCI.
   búsqueda interrumpible, profundidad y control de tiempo.
 - [x] Crear un ejecutable UCI autocontenido para Windows con `build-uci.ps1`.
 - [x] Informar del resultado y contexto de cada búsqueda en consola y mediante diagnósticos UCI.
+- [x] Guardar un registro legible por proceso UCI en la carpeta de usuario, con posiciones,
+  iteraciones y decisiones, independientemente de los registros de la interfaz gráfica.
 - [ ] Ampliar UCI con opciones adicionales si se necesitan: ponderación, `searchmoves` y
   límites de nodos, entre otras.
 
