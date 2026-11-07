@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.desierto.EngineInfo;
 import com.desierto.domain.Board;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
+import com.desierto.search.SearchDiagnostics;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -23,19 +25,37 @@ class UciProtocolTest {
     try (Harness h = new Harness()) {
       h.send("uci\nisready\nposition startpos moves e2e4\ngo depth 1\n");
       String output = h.await("bestmove ");
-      assertTrue(output.contains("id name Viktor"));
+      assertTrue(output.lines().anyMatch(line -> line.equals("id name " + EngineInfo.name())));
       assertTrue(output.contains("uciok"));
       assertTrue(output.contains("readyok"));
       assertTrue(output.contains("info depth 1 score "));
-      assertTrue(output.contains("info string decision reason=search"));
+      assertTrue(output.contains("info string decision:"));
+      assertTrue(output.contains("info string   source=search"));
+      assertTrue(output.contains("info string   selected_move="));
+      assertTrue(output.contains("info string   score_perspective=black"));
+      assertTrue(output.contains("info string   pv="));
+      assertTrue(output.contains("info string   alternatives:"));
+      assertTrue(output.contains("info string     - move="));
       assertTrue(output.contains("side=black fullmove=1 halfmove=0 in_check=false legal_moves=20"));
       assertTrue(output.contains("depth_limit=1 time_limit_ms=unlimited"));
-      assertTrue(output.matches("(?s).*elapsed_ms=\\d+ depth=1 nodes=\\d+ score=(cp|mate):-?\\d+.*"));
-      String diagnostic = output.lines().filter(line -> line.startsWith("info string decision "))
-          .findFirst().orElseThrow().substring("info string ".length());
-      assertEquals(diagnostic, h.diagnostics().trim());
+      assertTrue(output.matches("(?s).*info string   score=(cp|mate):-?\\d+.*"));
+      assertTrue(output.matches("(?s).*elapsed_ms=\\d+ uci_move=\\S+ depth=1 nodes=\\d+.*"));
+      String diagnostic = output.lines().filter(line -> line.startsWith("info string "))
+          .map(line -> line.substring("info string ".length()))
+          .collect(java.util.stream.Collectors.joining("\n"));
+      assertEquals(diagnostic, h.diagnostics().lines().collect(java.util.stream.Collectors.joining("\n")));
       Board board = UciPosition.parse("position startpos moves e2e4".split(" "));
+      for (String line : SearchDiagnostics.position(board, "received").lines().toList()) {
+        assertTrue(output.contains("info string " + line));
+      }
+      assertTrue(output.contains("info string   stage=projected_after_engine_move"));
       assertLegalBestMove(output, board);
+      String best = output.substring(output.lastIndexOf("bestmove ") + "bestmove ".length()).split("\\s+")[0];
+      board.makeMove(MoveNotation.find(best,
+          new MoveGenerator().generateLegalMoves(board, board.getSideToMove())).orElseThrow());
+      for (String line : SearchDiagnostics.position(board, "projected_after_engine_move").lines().toList()) {
+        assertTrue(output.contains("info string " + line));
+      }
       h.send("ucinewgame\nposition startpos\nisready\n");
       h.awaitCount("readyok", 2);
     }
@@ -60,8 +80,9 @@ class UciProtocolTest {
       h.send("position startpos\ngo movetime 0\n");
       String output = h.await("bestmove ");
       assertTrue(output.contains("Search stopped before completing an iteration"));
-      assertTrue(output.contains("reason=no_completed_iteration"));
-      assertTrue(output.contains("depth=unavailable nodes=unavailable score=unavailable"));
+      assertTrue(output.contains("source=no_completed_iteration"));
+      assertTrue(output.contains("score=unavailable"));
+      assertTrue(output.contains("depth=unavailable nodes=unavailable"));
       assertLegalBestMove(output, Board.standard());
     }
   }
@@ -73,11 +94,12 @@ class UciProtocolTest {
       h.send(repeated + "\ngo depth 1\n");
       String output = h.await("bestmove ");
       assertTrue(output.contains("Draw is handled by the GUI"));
-      assertTrue(output.contains("reason=automatic_draw"));
+      assertTrue(output.contains("source=automatic_draw"));
       assertLegalBestMove(output, UciPosition.parse(repeated.split(" ")));
       h.send("position fen 7k/6Q1/5K2/8/8/8/8/8 b - - 0 1\ngo depth 1\n");
       String mate = h.awaitCount("bestmove ", 2);
-      assertTrue(mate.contains("reason=terminal move=0000"));
+      assertTrue(mate.contains("source=terminal"));
+      assertTrue(mate.contains("uci_move=0000"));
       assertTrue(mate.contains("score=mate:0"));
     }
   }
@@ -89,7 +111,7 @@ class UciProtocolTest {
       h.send(position + "\ngo depth 1\n");
       String output = h.await("bestmove ");
       assertTrue(output.contains("Draw claim is handled by the GUI"));
-      assertTrue(output.contains("reason=draw_claim"));
+      assertTrue(output.contains("source=draw_claim"));
       assertLegalBestMove(output, UciPosition.parse(position.split(" ")));
     }
   }

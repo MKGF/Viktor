@@ -6,16 +6,22 @@ import java.util.Objects;
 import java.util.Optional;
 
 public record SearchResult(Optional<Move> bestMove, Color perspective, int score, int depth, long nodes,
-                           Optional<DrawClaim> drawClaim) {
+                           Optional<DrawClaim> drawClaim, SearchTrace trace) {
 
   public SearchResult(Optional<Move> bestMove, Color perspective, int score, int depth, long nodes) {
-    this(bestMove, perspective, score, depth, nodes, Optional.empty());
+    this(bestMove, perspective, score, depth, nodes, Optional.empty(), SearchTrace.EMPTY);
+  }
+
+  public SearchResult(Optional<Move> bestMove, Color perspective, int score, int depth, long nodes,
+      Optional<DrawClaim> drawClaim) {
+    this(bestMove, perspective, score, depth, nodes, drawClaim, SearchTrace.EMPTY);
   }
 
   public SearchResult {
     Objects.requireNonNull(bestMove, "bestMove must not be null");
     Objects.requireNonNull(perspective, "perspective must not be null");
     Objects.requireNonNull(drawClaim, "drawClaim must not be null");
+    Objects.requireNonNull(trace, "trace must not be null");
     if (drawClaim.isPresent() && (bestMove.isPresent() || score != 0)) {
       throw new IllegalArgumentException("A draw claim must have no best move and a zero score");
     }

@@ -33,7 +33,9 @@ class FixedDepthMinimaxEngineTest {
 
     assertEquals(Cell.A1, result.bestMove().orElseThrow().from());
     assertEquals(Cell.A8, result.bestMove().orElseThrow().to());
-    assertEquals(900, result.score());
+    Board afterCapture = board.copy();
+    afterCapture.makeMove(result.bestMove().orElseThrow());
+    assertEquals(new StandardPositionEvaluator().evaluate(afterCapture, Color.WHITE, 1), result.score());
     assertEquals(Color.WHITE, result.perspective());
     assertEquals(1, result.depth());
     assertTrue(result.nodes() > 1);
@@ -53,7 +55,7 @@ class FixedDepthMinimaxEngineTest {
     SearchResult result = engine.findBestMove(board, new SearchLimits(2));
 
     assertFalse(result.bestMove().orElseThrow().to().equals(Cell.D5));
-    assertEquals(300, result.score());
+    assertTrue(result.score() > 200 && result.score() < 400, "score=" + result.score());
     assertEquals(2, result.depth());
   }
 

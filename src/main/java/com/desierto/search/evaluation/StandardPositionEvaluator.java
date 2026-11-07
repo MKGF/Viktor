@@ -11,6 +11,7 @@ public final class StandardPositionEvaluator implements PositionEvaluator {
   public static final int CHECKMATE_SCORE = 100_000;
 
   private final PositionEvaluator materialEvaluator;
+  private final PositionEvaluator positionalEvaluator;
   private final MoveGenerator moveGenerator;
 
   public StandardPositionEvaluator() {
@@ -19,6 +20,7 @@ public final class StandardPositionEvaluator implements PositionEvaluator {
 
   StandardPositionEvaluator(PositionEvaluator materialEvaluator, MoveGenerator moveGenerator) {
     this.materialEvaluator = Objects.requireNonNull(materialEvaluator, "materialEvaluator must not be null");
+    this.positionalEvaluator = new PositionalEvaluator();
     this.moveGenerator = Objects.requireNonNull(moveGenerator, "moveGenerator must not be null");
   }
 
@@ -46,6 +48,6 @@ public final class StandardPositionEvaluator implements PositionEvaluator {
         || DrawDetector.isDeadByInsufficientMaterial(board)) {
       return 0;
     }
-    return materialEvaluator.evaluate(board, perspective);
+    return materialEvaluator.evaluate(board, perspective) + positionalEvaluator.evaluate(board, perspective);
   }
 }

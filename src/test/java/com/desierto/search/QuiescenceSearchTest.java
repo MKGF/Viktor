@@ -10,6 +10,7 @@ import com.desierto.domain.BoardFactory;
 import com.desierto.domain.Cell;
 import com.desierto.domain.Color;
 import com.desierto.domain.MoveGenerator;
+import com.desierto.domain.MoveNotation;
 import com.desierto.domain.pieces.King;
 import com.desierto.domain.pieces.Knight;
 import com.desierto.domain.pieces.Pawn;
@@ -42,7 +43,10 @@ class QuiescenceSearchTest {
 
     int score = search.search(board, Color.WHITE, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, context);
 
-    assertEquals(-100, score);
+    Board recaptured = board.copy();
+    recaptured.makeMove(MoveNotation.find("e6d5",
+        generator.generateLegalMoves(recaptured, Color.BLACK)).orElseThrow());
+    assertEquals(new StandardPositionEvaluator().evaluate(recaptured, Color.WHITE, 2), score);
     assertTrue(context.nodes() > 1);
     assertTrue(board.getPieceAt(Cell.D5).orElseThrow() instanceof Queen);
     assertEquals(Color.BLACK, board.getSideToMove());
@@ -60,7 +64,7 @@ class QuiescenceSearchTest {
     int score = search.search(board, Color.WHITE, 0, Integer.MIN_VALUE, Integer.MAX_VALUE,
         new FixedDepthAlphaBetaEngine.SearchContext());
 
-    assertEquals(900, score);
+    assertTrue(score > 800 && score < 1000, "score=" + score);
   }
 
   @Test
@@ -81,10 +85,12 @@ class QuiescenceSearchTest {
         .place(new King(Color.BLACK, Cell.E8), Cell.E8)
         .build();
 
-    assertEquals(900, search.search(promotion, Color.WHITE, 0,
-        Integer.MIN_VALUE, Integer.MAX_VALUE, new FixedDepthAlphaBetaEngine.SearchContext()));
-    assertEquals(100, search.search(enPassant, Color.WHITE, 0,
-        Integer.MIN_VALUE, Integer.MAX_VALUE, new FixedDepthAlphaBetaEngine.SearchContext()));
+    int promotionScore = search.search(promotion, Color.WHITE, 0,
+        Integer.MIN_VALUE, Integer.MAX_VALUE, new FixedDepthAlphaBetaEngine.SearchContext());
+    int enPassantScore = search.search(enPassant, Color.WHITE, 0,
+        Integer.MIN_VALUE, Integer.MAX_VALUE, new FixedDepthAlphaBetaEngine.SearchContext());
+    assertTrue(promotionScore > 800 && promotionScore < 1000, "score=" + promotionScore);
+    assertTrue(enPassantScore > 50 && enPassantScore < 150, "score=" + enPassantScore);
   }
 
   @Test
