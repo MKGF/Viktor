@@ -2,6 +2,8 @@ package com.desierto.uci;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.desierto.EngineInfo;
@@ -16,10 +18,60 @@ import java.io.PipedReader;
 import java.io.PipedWriter;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class UciProtocolTest {
+  @Test
+  void writesReadableIndependentLogForMultipleGames(@TempDir Path directory) throws Exception {
+    try (UciSessionLog log = UciSessionLog.open(directory, EngineInfo.name());
+        UciSessionLog another = UciSessionLog.open(directory, EngineInfo.name());
+        Harness h = new Harness(log)) {
+      assertNotEquals(log.path(), another.path());
+      assertTrue(log.path().toString().endsWith(".log"));
+      h.send("ucinewgame\nposition startpos moves e2e4\ngo depth 2\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("info string decision:"));
+      h.send("ucinewgame\nisready\n");
+      h.await("readyok");
+      String contents = Files.readString(log.path(), StandardCharsets.UTF_8).replace("\r\n", "\n");
+      assertTrue(contents.contains("engine=" + EngineInfo.name()));
+      assertEquals(2, contents.lines().filter(line -> line.equals("  event=new_game")).count());
+      assertTrue(contents.contains("input=position startpos moves e2e4"));
+      assertTrue(contents.contains("  board:\n"));
+      assertTrue(contents.contains("input=go depth 2"));
+      assertTrue(contents.contains("iteration:\n  depth=1"));
+      assertTrue(contents.contains("iteration:\n  depth=2"));
+      assertTrue(contents.contains("decision:\n  source=search"));
+      assertTrue(contents.contains("  alternatives:\n    - move="));
+      assertTrue(contents.contains("  stage=projected_after_engine_move"));
+      assertTrue(contents.contains("\n  side=black\n  fullmove=1\n"));
+      assertFalse(contents.contains("info string"));
+    }
+  }
+
+  @Test
+  void reportsLogWriteFailureAndContinuesSearch(@TempDir Path directory) throws Exception {
+    UciSessionLog log = UciSessionLog.open(directory, EngineInfo.name());
+    log.close();
+    try (Harness h = new Harness(log)) {
+      h.send("position startpos\ngo depth 1\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("info string Warning: cannot write Viktor log:"));
+      assertTrue(h.diagnostics().contains("Warning: cannot write Viktor log:"));
+      assertLegalBestMove(output, Board.standard());
+    }
+  }
+
+  @Test
+  void reportsLogCreationFailure(@TempDir Path directory) throws Exception {
+    Path file = Files.createFile(directory.resolve("not-a-directory"));
+    assertThrows(IOException.class, () -> UciSessionLog.open(file, EngineInfo.name()));
+  }
+
   @Test
   void handshakeDepthSearchAndNewGame() throws Exception {
     try (Harness h = new Harness()) {
@@ -146,12 +198,16 @@ class UciProtocolTest {
     private volatile Throwable failure;
 
     Harness() throws IOException {
+      this(null);
+    }
+
+    Harness(UciSessionLog sessionLog) throws IOException {
       BufferedReader input = new BufferedReader(new PipedReader(commands));
       PrintStream output = new PrintStream(bytes, true, StandardCharsets.UTF_8);
       PrintStream errors = new PrintStream(errorBytes, true, StandardCharsets.UTF_8);
       protocol = new Thread(() -> {
         try {
-          new UciProtocol(output, errors).run(input);
+          new UciProtocol(output, errors, sessionLog).run(input);
         } catch (Throwable ex) {
           failure = ex;
         }

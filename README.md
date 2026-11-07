@@ -84,7 +84,7 @@ that includes `javac`, `jar` and `jpackage`:
 .\build-uci.ps1
 ```
 
-The executable is `target\ViktorUCI-1.1.0\ViktorUCI-1.1.0.exe` for version 1.1.0. The
+The executable is `target\ViktorUCI-1.1.1\ViktorUCI-1.1.1.exe` for version 1.1.1. The
 script takes the version from `pom.xml`, so different versions can be kept side by side.
 Keep the entire versioned directory together: it includes the Java runtime needed to launch
 the engine. The script does not overwrite an existing directory for the same version; move
@@ -98,7 +98,7 @@ For example, [Lucas Chess](https://lucaschess.pythonanywhere.com/downloads) supp
 UCI engines:
 
 1. Install or run Lucas Chess for Windows.
-2. Open **Engines → External engines → New** and select the versioned `ViktorUCI-1.1.0.exe`.
+2. Open **Engines → External engines → New** and select the versioned `ViktorUCI-1.1.1.exe`.
 3. Accept the engine details, then start a game against an engine and select Viktor from
    **External engines**. Choose your color and a fixed thinking time or depth.
 
@@ -128,6 +128,24 @@ structure, mobility or king attacks. Checkmate and recognized draws still take p
 the positional score.
 
 ## Search diagnostics
+
+Each UCI engine process also creates its own readable UTF-8 `.log` file, independent of the
+GUI's protocol log. On Windows the files are in `%USERPROFILE%\Viktor\logs`; on other systems
+they are in `Viktor/logs` under Java's `user.home`. Open that folder with:
+
+```powershell
+explorer "$env:USERPROFILE\Viktor\logs"
+```
+
+Each launch uses a unique filename and may contain multiple games, separated by `new_game`
+events when the GUI sends `ucinewgame`. Timestamped blocks include received positions and
+boards, search requests, completed iterations, decisions and projected positions. The file is
+flushed after each block and is retained until manually deleted. It contains the position
+commands and move histories supplied by the GUI; avoid sharing it if those are private. The
+GUI controls the actual game result, so the log does not infer a result when the process ends.
+If the file cannot be created or written, Viktor reports a warning on standard error and as a
+UCI `info string`, then continues without the file. Console mode retains its existing output
+and does not create this UCI log.
 
 After each search, the console prints a structured decision, for example:
 
@@ -178,5 +196,5 @@ To keep an existing Windows build while generating an updated executable in a se
 .\build-uci.ps1 -Destination target\uci-diagnostics
 ```
 
-In that case select `target\uci-diagnostics\ViktorUCI-1.1.0\ViktorUCI-1.1.0.exe` in the GUI
+In that case select `target\uci-diagnostics\ViktorUCI-1.1.1\ViktorUCI-1.1.1.exe` in the GUI
 and keep its entire versioned folder together.
