@@ -58,9 +58,19 @@ convertirla en un motor de búsqueda.
 - [x] Implementar minimax a profundidad fija.
 - [x] Puntuar la distancia al mate para preferir mates rápidos y retrasar derrotas inevitables.
 - [x] Añadir alpha-beta pruning.
-- [ ] Añadir ordenación de movimientos: promociones, capturas, jaques y mejor jugada anterior.
-- [ ] Añadir iterative deepening para profundizar por etapas y respetar un límite de tiempo.
-- [ ] Añadir quiescence search en las hojas para resolver capturas, promociones y jaques pendientes.
+- [x] Añadir ordenación de movimientos: promociones, capturas, jaques y mejor jugada anterior.
+  `FixedDepthAlphaBetaEngine` acepta opcionalmente la clave de una jugada anterior en la raíz;
+  el llamador puede proporcionarla a partir de una búsqueda previa.
+- [x] Añadir iterative deepening para profundizar por etapas y respetar un límite de tiempo.
+  `IterativeDeepeningEngine.findBestMove(board, limits, timeLimit)` devuelve la última iteración
+  completada, reutilizando su mejor jugada en la siguiente. Si no se completa ninguna, lanza
+  `SearchTimeoutException`. Los nodos incluyen el trabajo de la iteración interrumpida.
+  El límite se comprueba entre operaciones de búsqueda, no interrumpe una operación en curso.
+- [x] Añadir quiescence search en las hojas para resolver capturas, promociones y jaques pendientes.
+  Se exploran capturas y promociones; si el rey está en jaque, se exploran todas las respuestas
+  legales. La extensión se limita a ocho medias jugadas y entonces se evalúa incluso en jaque.
+  Está activada por defecto en alpha-beta y búsqueda iterativa; puede desactivarse con el
+  constructor que recibe `false`.
 
 ## 7. Rendimiento
 
