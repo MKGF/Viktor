@@ -19,9 +19,23 @@ public final class LegalMove {
   }
 
   public Board resultingPosition() {
-    if (!sourceBoard.isAtVersion(sourceVersion)) {
+    validateSource(sourceBoard);
+    return sourceBoard.copyAfterGeneratedMove(move);
+  }
+
+  public boolean givesCheck() {
+    validateSource(sourceBoard);
+    Board.UndoState state = sourceBoard.makeTemporaryMove(move);
+    try {
+      return new AttackDetector().isKingInCheck(sourceBoard, sourceBoard.getSideToMove());
+    } finally {
+      sourceBoard.restoreTemporaryMove(state);
+    }
+  }
+
+  void validateSource(Board board) {
+    if (sourceBoard != board || !sourceBoard.isAtVersion(sourceVersion)) {
       throw new IllegalStateException("The source position changed after generating the legal move");
     }
-    return sourceBoard.copyAfterGeneratedMove(move);
   }
 }

@@ -3,23 +3,12 @@ package com.desierto.search;
 import com.desierto.domain.Board;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
-import com.desierto.domain.MoveGenerator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 public final class TacticalMoveOrderingStrategy implements MoveOrderingStrategy {
-
-  private final MoveGenerator moveGenerator;
-
-  public TacticalMoveOrderingStrategy() {
-    this(new MoveGenerator());
-  }
-
-  TacticalMoveOrderingStrategy(MoveGenerator moveGenerator) {
-    this.moveGenerator = Objects.requireNonNull(moveGenerator, "moveGenerator must not be null");
-  }
 
   @Override
   public List<LegalMove> order(Board board, List<LegalMove> legalMoves,
@@ -58,7 +47,6 @@ public final class TacticalMoveOrderingStrategy implements MoveOrderingStrategy 
   }
 
   private boolean givesCheck(LegalMove legalMove) {
-    Board resultingBoard = legalMove.resultingPosition();
-    return moveGenerator.isKingInCheck(resultingBoard, resultingBoard.getSideToMove());
+    return legalMove.givesCheck();
   }
 }

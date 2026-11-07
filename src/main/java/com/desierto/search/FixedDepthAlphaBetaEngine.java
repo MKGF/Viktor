@@ -5,6 +5,7 @@ import com.desierto.domain.Color;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
+import com.desierto.domain.SearchPosition;
 import com.desierto.search.evaluation.PositionEvaluator;
 import com.desierto.search.evaluation.StandardPositionEvaluator;
 import java.util.List;
@@ -18,14 +19,19 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
   private final MoveGenerator moveGenerator;
   private final MoveOrderingStrategy moveOrderingStrategy;
   private final QuiescenceSearch quiescenceSearch;
+  private final boolean transpositionsEnabled;
 
   public FixedDepthAlphaBetaEngine() {
     this(true);
   }
 
   public FixedDepthAlphaBetaEngine(boolean quiescenceEnabled) {
+    this(quiescenceEnabled, true);
+  }
+
+  public FixedDepthAlphaBetaEngine(boolean quiescenceEnabled, boolean transpositionsEnabled) {
     this(new StandardPositionEvaluator(), new MoveGenerator(), new TacticalMoveOrderingStrategy(),
-        quiescenceEnabled);
+        quiescenceEnabled, transpositionsEnabled);
   }
 
   FixedDepthAlphaBetaEngine(PositionEvaluator evaluator, MoveGenerator moveGenerator) {
@@ -39,12 +45,19 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
 
   FixedDepthAlphaBetaEngine(PositionEvaluator evaluator, MoveGenerator moveGenerator,
       MoveOrderingStrategy moveOrderingStrategy, boolean quiescenceEnabled) {
+    this(evaluator, moveGenerator, moveOrderingStrategy, quiescenceEnabled, false);
+  }
+
+  FixedDepthAlphaBetaEngine(PositionEvaluator evaluator, MoveGenerator moveGenerator,
+      MoveOrderingStrategy moveOrderingStrategy, boolean quiescenceEnabled,
+      boolean transpositionsEnabled) {
     this.evaluator = Objects.requireNonNull(evaluator, "evaluator must not be null");
     this.moveGenerator = Objects.requireNonNull(moveGenerator, "moveGenerator must not be null");
     this.moveOrderingStrategy = Objects.requireNonNull(moveOrderingStrategy,
         "moveOrderingStrategy must not be null");
     this.quiescenceSearch = quiescenceEnabled
         ? new QuiescenceSearch(evaluator, moveGenerator, moveOrderingStrategy) : null;
+    this.transpositionsEnabled = transpositionsEnabled;
   }
 
   @Override
@@ -63,13 +76,18 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
     Objects.requireNonNull(limits, "limits must not be null");
     Objects.requireNonNull(preferredMove, "preferredMove must not be null");
     Objects.requireNonNull(context, "context must not be null");
+    if (transpositionsEnabled) {
+      context.enableTranspositions();
+    }
 
-    Color perspective = board.getSideToMove();
+    SearchPosition position = new SearchPosition(board);
+    Board workingBoard = position.board();
+    Color perspective = workingBoard.getSideToMove();
     context.visitPosition();
-    List<LegalMove> legalMoves = moveGenerator.generateLegalMoveApplications(board, perspective);
+    List<LegalMove> legalMoves = moveGenerator.generateLegalMoveApplications(workingBoard, perspective);
     context.checkTime();
     if (legalMoves.isEmpty()) {
-      int score = evaluator.evaluate(board, perspective, 0);
+      int score = evaluator.evaluate(workingBoard, perspective, 0);
       context.checkTime();
       return new SearchResult(Optional.empty(), perspective, score, 0, context.nodes());
     }
@@ -78,12 +96,14 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
     int bestScore = Integer.MIN_VALUE;
     int alpha = Integer.MIN_VALUE;
     int beta = Integer.MAX_VALUE;
-    List<LegalMove> orderedMoves = moveOrderingStrategy.order(board, legalMoves, preferredMove);
+    List<LegalMove> orderedMoves = moveOrderingStrategy.order(workingBoard, legalMoves, preferredMove);
     context.checkTime();
     for (LegalMove legalMove : orderedMoves) {
       Move move = legalMove.move();
-      Board child = legalMove.resultingPosition();
-      int score = alphaBeta(child, limits.maxDepth() - 1, perspective, 1, alpha, beta, context);
+      int score;
+      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+        score = alphaBeta(position, limits.maxDepth() - 1, perspective, 1, alpha, beta, context);
+      }
       if (score > bestScore) {
         bestScore = score;
         bestMove = move;
@@ -91,14 +111,15 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       alpha = Math.max(alpha, bestScore);
     }
     context.checkTime();
-    return new SearchResult(Optional.of(bestMove), perspective, bestScore, limits.maxDepth(),
+    return new SearchResult(Optional.of(position.originalMove(bestMove)), perspective, bestScore, limits.maxDepth(),
         context.nodes());
   }
 
-  private int alphaBeta(Board board, int remainingDepth, Color perspective, int plyFromRoot, int alpha,
+  private int alphaBeta(SearchPosition position, int remainingDepth, Color perspective, int plyFromRoot, int alpha,
       int beta, SearchContext context) {
+    Board board = position.board();
     if (remainingDepth == 0 && quiescenceSearch != null) {
-      return quiescenceSearch.search(board, perspective, plyFromRoot, alpha, beta, context);
+      return quiescenceSearch.search(position, perspective, plyFromRoot, alpha, beta, context);
     }
     context.visitPosition();
     if (remainingDepth == 0) {
@@ -107,40 +128,64 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       return score;
     }
 
+    int originalAlpha = alpha;
+    int originalBeta = beta;
+    long key = 0;
+    if (context.table != null) {
+      key = PositionHash.of(board);
+      TranspositionTable.Entry entry = context.table.find(key, remainingDepth, plyFromRoot);
+      if (entry != null && entry.canCutOff(alpha, beta)) {
+        return entry.score();
+      }
+    }
+
     List<LegalMove> legalMoves = moveGenerator.generateLegalMoveApplications(board,
         board.getSideToMove());
     context.checkTime();
     if (legalMoves.isEmpty()) {
       int score = evaluator.evaluate(board, perspective, plyFromRoot);
       context.checkTime();
+      if (context.table != null) {
+        context.table.store(key, remainingDepth, plyFromRoot, score, originalAlpha, originalBeta);
+      }
       return score;
     }
 
     if (board.getSideToMove() == perspective) {
       int bestScore = Integer.MIN_VALUE;
       for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
-        Board child = legalMove.resultingPosition();
-        int score = alphaBeta(child, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
-            context);
+        int score;
+        try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+          score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
+              context);
+        }
         bestScore = Math.max(bestScore, score);
         alpha = Math.max(alpha, bestScore);
         if (alpha >= beta) {
           break;
         }
       }
+      if (context.table != null) {
+        context.table.store(key, remainingDepth, plyFromRoot, bestScore, originalAlpha, originalBeta);
+      }
       return bestScore;
     }
 
     int bestScore = Integer.MAX_VALUE;
     for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
-      Board child = legalMove.resultingPosition();
-      int score = alphaBeta(child, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
-          context);
+      int score;
+      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+        score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
+            context);
+      }
       bestScore = Math.min(bestScore, score);
       beta = Math.min(beta, bestScore);
       if (alpha >= beta) {
         break;
       }
+    }
+    if (context.table != null) {
+      context.table.store(key, remainingDepth, plyFromRoot, bestScore, originalAlpha, originalBeta);
     }
     return bestScore;
   }
@@ -155,6 +200,7 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
 
     private long nodes;
     private final BooleanSupplier timeExpired;
+    private TranspositionTable table;
 
     SearchContext() {
       this(() -> false);
@@ -167,6 +213,12 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
     void checkTime() {
       if (timeExpired.getAsBoolean()) {
         throw new SearchDeadlineExceeded();
+      }
+    }
+
+    void enableTranspositions() {
+      if (table == null) {
+        table = new TranspositionTable(TranspositionTable.DEFAULT_CAPACITY);
       }
     }
 

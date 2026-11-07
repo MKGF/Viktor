@@ -4,6 +4,7 @@ import com.desierto.domain.Board;
 import com.desierto.domain.Color;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.MoveGenerator;
+import com.desierto.domain.SearchPosition;
 import com.desierto.search.evaluation.PositionEvaluator;
 import java.util.List;
 import java.util.Objects;
@@ -37,11 +38,17 @@ final class QuiescenceSearch {
 
   int search(Board board, Color perspective, int plyFromRoot, int alpha, int beta,
       FixedDepthAlphaBetaEngine.SearchContext context) {
-    return search(board, perspective, plyFromRoot, 0, alpha, beta, context);
+    return search(new SearchPosition(board), perspective, plyFromRoot, alpha, beta, context);
   }
 
-  private int search(Board board, Color perspective, int plyFromRoot, int quiescencePly,
+  int search(SearchPosition position, Color perspective, int plyFromRoot, int alpha, int beta,
+      FixedDepthAlphaBetaEngine.SearchContext context) {
+    return search(position, perspective, plyFromRoot, 0, alpha, beta, context);
+  }
+
+  private int search(SearchPosition position, Color perspective, int plyFromRoot, int quiescencePly,
       int alpha, int beta, FixedDepthAlphaBetaEngine.SearchContext context) {
+    Board board = position.board();
     context.visitPosition();
     if (quiescencePly == maxPly) {
       return evaluate(board, perspective, plyFromRoot, context);
@@ -84,8 +91,11 @@ final class QuiescenceSearch {
     List<LegalMove> orderedMoves = moveOrderingStrategy.order(board, legalMoves, Optional.empty());
     context.checkTime();
     for (LegalMove move : orderedMoves) {
-      int score = search(move.resultingPosition(), perspective, plyFromRoot + 1,
-          quiescencePly + 1, alpha, beta, context);
+      int score;
+      try (SearchPosition.MoveScope ignored = position.apply(move)) {
+        score = search(position, perspective, plyFromRoot + 1,
+            quiescencePly + 1, alpha, beta, context);
+      }
       if (maximizing) {
         bestScore = Math.max(bestScore, score);
         alpha = Math.max(alpha, bestScore);

@@ -72,23 +72,53 @@ convertirla en un motor de búsqueda.
   Está activada por defecto en alpha-beta y búsqueda iterativa; puede desactivarse con el
   constructor que recibe `false`.
 
-## 7. Rendimiento
+## 7. Rendimiento (etapa actual completada)
 
-- [ ] Medir tiempos de generación y búsqueda, profundidad alcanzada y nodos por segundo.
-- [ ] Añadir transposition table con hashing Zobrist para reutilizar posiciones repetidas.
-- [ ] Optimizar estructuras de datos solo cuando las mediciones identifiquen un cuello de botella.
+- [x] Medir tiempos de generación y búsqueda, profundidad alcanzada y nodos por segundo.
+  `com.desierto.benchmark.SearchBenchmark` mide las posiciones inicial, táctica y final, con y
+  sin quiescence ni tabla de transposiciones, en todas las combinaciones, a profundidad fija
+  y con límite de tiempo. Ejecutar:
+  `mvn compile` y luego `java -cp target\classes com.desierto.benchmark.SearchBenchmark`.
+  Opcionalmente acepta cinco argumentos: calentamientos, muestras, profundidad fija,
+  profundidad máxima iterativa y límite en milisegundos (por defecto `2 5 2 8 250`).
+  Se muestran cada muestra y las medianas de tiempo y nodos por segundo, además de la versión
+  de Java y datos del equipo. Las muestras que agotan el tiempo antes de completar una etapa
+  se señalan como `timeout`; los nodos de una búsqueda iterativa incluyen la etapa interrumpida.
+  Las mediciones dependen de la máquina y no son umbrales de test.
 
-### Mejoras futuras de exploración
+- [x] Añadir transposition table con hashing Zobrist para reutilizar posiciones repetidas.
+  La tabla tiene 65536 entradas y pertenece a una búsqueda, incluidas sus iteraciones. El hash
+  cubre piezas, color, posición, indicador de movimiento, turno, enroque y casilla en passant.
+  Solo se reutilizan puntuaciones a la misma profundidad restante y distancia desde la raíz;
+  las cotas alpha-beta se aplican según su tipo. Quiescence no se almacena en la tabla.
+  Se activa por defecto y puede desactivarse con el segundo parámetro booleano de los
+  constructores de `FixedDepthAlphaBetaEngine` e `IterativeDeepeningEngine`.
+  La implementación actual no evalúa tablas por repetición ni por los contadores de jugadas;
+  cuando se implementen esas reglas deberá revisarse la identidad de las posiciones en la tabla.
 
-- [ ] Sustituir las copias completas de `Board` por `make/unmake` interno con un `UndoState`.
-- [ ] Reutilizar `make/unmake` al filtrar movimientos que dejan al rey en jaque.
-- [ ] Evaluar una representación de tablero más compacta solo si las mediciones lo justifican.
+- [x] Evitar listas intermedias al obtener las piezas de un color.
+
+### Mejoras de exploración realizadas
+
+- [x] Sustituir las copias completas de `Board` por `make/unmake` interno con un `UndoState`.
+  La búsqueda trabaja sobre una copia aislada de la posición inicial y revierte cada jugada
+  incluso si se interrumpe por una excepción o por el límite de tiempo.
+- [x] Reutilizar `make/unmake` al filtrar movimientos que dejan al rey en jaque.
+  `Board` es mutable y no es seguro para acceso concurrente; también debe sincronizarse durante
+  la generación de jugadas y la comprobación temporal de jaques.
+
+### Posibles mejoras futuras (no bloqueantes)
+
+- Optimizar estructuras de datos si se necesita más rendimiento y las mediciones identifican
+  un cuello de botella.
+- Evaluar una representación de tablero más compacta si se necesita más rendimiento y las
+  mediciones justifican el cambio.
 
 ## 8. Interfaz y uso
 
-- [ ] Crear entrada por consola.
+- [x] Crear entrada por consola para jugar contra Viktor.
 - [x] Mostrar tablero en texto.
-- [ ] Leer movimientos en una notación definida.
+- [x] Leer movimientos por coordenadas, incluidas las promociones. El uso se explica en `README.md`.
 - [ ] Definir formato UCI si se quiere integrar con GUIs externas.
 
 ## 9. Tests
@@ -104,7 +134,7 @@ convertirla en un motor de búsqueda.
 - [x] Test de turno, legalidad y protección frente a metadatos de movimiento incorrectos.
 - [x] Test de evaluación material, mate y ahogado.
 - [x] Test de selección táctica del buscador: ganancia de material, defensa y mate.
-- [ ] Test de rendimiento y número de nodos al añadir optimizaciones.
+- [x] Test de rendimiento y número de nodos al añadir optimizaciones.
 
 ## Orden de trabajo actual
 
@@ -117,5 +147,5 @@ convertirla en un motor de búsqueda.
 7. Añadir quiescence search.
 8. Medir rendimiento.
 9. Añadir hashing Zobrist y tabla de transposiciones.
-10. Optimizar solo a partir de las mediciones.
-11. Crear la interfaz de consola y, si procede, UCI.
+10. Optimizar a partir de las mediciones (etapa actual completada; mejoras posteriores opcionales).
+11. Crear la interfaz de consola (completada) y, si procede, UCI.

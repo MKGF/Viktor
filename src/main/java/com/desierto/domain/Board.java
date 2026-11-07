@@ -8,6 +8,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Mutable position; not thread-safe. Legal move generation and check detection may temporarily
+ * modify a board before restoring it, so callers must synchronize concurrent access.
+ */
 public class Board {
 
   private final Piece[][] squares;
@@ -22,6 +26,7 @@ public class Board {
   private int halfmoveClock;
   private int fullmoveNumber;
   private long positionVersion;
+  private long positionSequence;
 
   public Board() {
     this.squares = new Piece[8][8];
@@ -55,6 +60,7 @@ public class Board {
     copy.halfmoveClock = halfmoveClock;
     copy.fullmoveNumber = fullmoveNumber;
     copy.positionVersion = positionVersion;
+    copy.positionSequence = positionSequence;
     for (int row = 0; row < 8; row++) {
       for (int column = 0; column < 8; column++) {
         Piece piece = squares[row][column];
@@ -93,7 +99,7 @@ public class Board {
       throw new IllegalArgumentException("Piece position must match the target square");
     }
     squares[cell.row()][cell.column()] = piece;
-    positionVersion++;
+    advancePositionVersion();
   }
 
   void configurePosition(Color sideToMove, boolean whiteKingsideCastleRight,
@@ -114,14 +120,14 @@ public class Board {
     }
     this.halfmoveClock = halfmoveClock;
     this.fullmoveNumber = fullmoveNumber;
-    positionVersion++;
+    advancePositionVersion();
   }
 
   public Optional<Piece> removePiece(Cell cell) {
     validateCell(cell);
     Piece piece = squares[cell.row()][cell.column()];
     squares[cell.row()][cell.column()] = null;
-    positionVersion++;
+    advancePositionVersion();
     return Optional.ofNullable(piece);
   }
 
@@ -140,6 +146,70 @@ public class Board {
   void applyGeneratedMove(Move move) {
     Objects.requireNonNull(move, "move must not be null");
     applyMoveInternal(move);
+  }
+
+  UndoState makeTemporaryMove(Move move) {
+    Objects.requireNonNull(move, "move must not be null");
+    Cell extraFrom = null;
+    Cell extraTo = null;
+    if (move.type() == MoveType.EN_PASSANT) {
+      extraFrom = Cell.of(move.from().row(), move.to().column());
+    } else if (move.type() == MoveType.CASTLE_KINGSIDE
+        || move.type() == MoveType.CASTLE_QUEENSIDE) {
+      boolean kingside = move.type() == MoveType.CASTLE_KINGSIDE;
+      extraFrom = Cell.of(move.from().row(), kingside ? 7 : 0);
+      extraTo = Cell.of(move.from().row(), kingside ? 5 : 3);
+    }
+    UndoState state = new UndoState(move.from(), move.to(), pieceAt(move.from()), pieceAt(move.to()),
+        extraFrom, pieceAt(extraFrom), extraTo, pieceAt(extraTo), lastMove, sideToMove,
+        whiteKingsideCastleRight, whiteQueensideCastleRight, blackKingsideCastleRight,
+        blackQueensideCastleRight, enPassantTarget, halfmoveClock, fullmoveNumber, positionVersion);
+    try {
+      applyGeneratedMove(move);
+    } catch (RuntimeException | Error ex) {
+      restoreTemporaryMove(state);
+      throw ex;
+    }
+    return state;
+  }
+
+  void restoreTemporaryMove(UndoState state) {
+    setPiece(state.from(), state.fromPiece());
+    setPiece(state.to(), state.toPiece());
+    setPiece(state.extraFrom(), state.extraFromPiece());
+    setPiece(state.extraTo(), state.extraToPiece());
+    lastMove = state.lastMove();
+    sideToMove = state.sideToMove();
+    whiteKingsideCastleRight = state.whiteKingsideCastleRight();
+    whiteQueensideCastleRight = state.whiteQueensideCastleRight();
+    blackKingsideCastleRight = state.blackKingsideCastleRight();
+    blackQueensideCastleRight = state.blackQueensideCastleRight();
+    enPassantTarget = state.enPassantTarget();
+    halfmoveClock = state.halfmoveClock();
+    fullmoveNumber = state.fullmoveNumber();
+    positionVersion = state.positionVersion();
+  }
+
+  private Piece pieceAt(Cell cell) {
+    return cell == null ? null : squares[cell.row()][cell.column()];
+  }
+
+  private void setPiece(Cell cell, Piece piece) {
+    if (cell != null) {
+      squares[cell.row()][cell.column()] = piece;
+    }
+  }
+
+  private void advancePositionVersion() {
+    positionVersion = ++positionSequence;
+  }
+
+  record UndoState(Cell from, Cell to, Piece fromPiece, Piece toPiece, Cell extraFrom,
+                   Piece extraFromPiece, Cell extraTo, Piece extraToPiece, Move lastMove,
+                   Color sideToMove, boolean whiteKingsideCastleRight,
+                   boolean whiteQueensideCastleRight, boolean blackKingsideCastleRight,
+                   boolean blackQueensideCastleRight, Cell enPassantTarget, int halfmoveClock,
+                   int fullmoveNumber, long positionVersion) {
   }
 
   boolean isAtVersion(long version) {
@@ -211,7 +281,7 @@ public class Board {
       case CASTLE_QUEENSIDE -> applyCastleMove(move, piece, false);
       default -> throw new IllegalStateException("Unexpected move type: " + move.type());
     }
-    positionVersion++;
+    advancePositionVersion();
   }
 
   private void validateLegalMove(Move move) {
@@ -258,9 +328,12 @@ public class Board {
 
   public List<Piece> getPieces(Color color) {
     List<Piece> pieces = new ArrayList<>();
-    for (Piece piece : getPieces()) {
-      if (piece.getColor() == color) {
-        pieces.add(piece);
+    for (int row = 0; row < 8; row++) {
+      for (int column = 0; column < 8; column++) {
+        Piece piece = squares[row][column];
+        if (piece != null && piece.getColor() == color) {
+          pieces.add(piece);
+        }
       }
     }
     return List.copyOf(pieces);
@@ -295,7 +368,7 @@ public class Board {
     enPassantTarget = snapshot.enPassantTarget;
     halfmoveClock = snapshot.halfmoveClock;
     fullmoveNumber = snapshot.fullmoveNumber;
-    positionVersion++;
+    advancePositionVersion();
   }
 
   private void applyRegularMove(Move move, Piece piece) {

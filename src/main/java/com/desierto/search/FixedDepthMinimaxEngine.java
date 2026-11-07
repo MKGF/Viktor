@@ -5,6 +5,7 @@ import com.desierto.domain.Color;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
+import com.desierto.domain.SearchPosition;
 import com.desierto.search.evaluation.PositionEvaluator;
 import com.desierto.search.evaluation.StandardPositionEvaluator;
 import java.util.List;
@@ -30,12 +31,14 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
     Objects.requireNonNull(board, "board must not be null");
     Objects.requireNonNull(limits, "limits must not be null");
 
-    Color perspective = board.getSideToMove();
+    SearchPosition position = new SearchPosition(board);
+    Board workingBoard = position.board();
+    Color perspective = workingBoard.getSideToMove();
     SearchContext context = new SearchContext();
     context.visitPosition();
-    List<LegalMove> legalMoves = moveGenerator.generateLegalMoveApplications(board, perspective);
+    List<LegalMove> legalMoves = moveGenerator.generateLegalMoveApplications(workingBoard, perspective);
     if (legalMoves.isEmpty()) {
-      return new SearchResult(Optional.empty(), perspective, evaluator.evaluate(board, perspective, 0), 0,
+      return new SearchResult(Optional.empty(), perspective, evaluator.evaluate(workingBoard, perspective, 0), 0,
           context.nodes());
     }
 
@@ -43,19 +46,22 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
     int bestScore = Integer.MIN_VALUE;
     for (LegalMove legalMove : legalMoves) {
       Move move = legalMove.move();
-      Board child = legalMove.resultingPosition();
-      int score = minimax(child, limits.maxDepth() - 1, perspective, 1, context);
+      int score;
+      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+        score = minimax(position, limits.maxDepth() - 1, perspective, 1, context);
+      }
       if (score > bestScore) {
         bestScore = score;
         bestMove = move;
       }
     }
-    return new SearchResult(Optional.of(bestMove), perspective, bestScore, limits.maxDepth(),
+    return new SearchResult(Optional.of(position.originalMove(bestMove)), perspective, bestScore, limits.maxDepth(),
         context.nodes());
   }
 
-  private int minimax(Board board, int remainingDepth, Color perspective, int plyFromRoot,
+  private int minimax(SearchPosition position, int remainingDepth, Color perspective, int plyFromRoot,
       SearchContext context) {
+    Board board = position.board();
     context.visitPosition();
     if (remainingDepth == 0) {
       return evaluator.evaluate(board, perspective, plyFromRoot);
@@ -70,8 +76,10 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
     boolean maximizesScore = board.getSideToMove() == perspective;
     int bestScore = maximizesScore ? Integer.MIN_VALUE : Integer.MAX_VALUE;
     for (LegalMove legalMove : legalMoves) {
-      Board child = legalMove.resultingPosition();
-      int score = minimax(child, remainingDepth - 1, perspective, plyFromRoot + 1, context);
+      int score;
+      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+        score = minimax(position, remainingDepth - 1, perspective, plyFromRoot + 1, context);
+      }
       bestScore = maximizesScore ? Math.max(bestScore, score) : Math.min(bestScore, score);
     }
     return bestScore;

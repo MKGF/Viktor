@@ -19,6 +19,10 @@ public final class IterativeDeepeningEngine implements SearchEngine {
     this(new FixedDepthAlphaBetaEngine(quiescenceEnabled), System::nanoTime);
   }
 
+  public IterativeDeepeningEngine(boolean quiescenceEnabled, boolean transpositionsEnabled) {
+    this(new FixedDepthAlphaBetaEngine(quiescenceEnabled, transpositionsEnabled), System::nanoTime);
+  }
+
   IterativeDeepeningEngine(FixedDepthAlphaBetaEngine engine, LongSupplier nanoTime) {
     this.engine = Objects.requireNonNull(engine, "engine must not be null");
     this.nanoTime = Objects.requireNonNull(nanoTime, "nanoTime must not be null");

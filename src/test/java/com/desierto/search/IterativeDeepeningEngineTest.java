@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class IterativeDeepeningEngineTest {
@@ -29,7 +30,8 @@ class IterativeDeepeningEngineTest {
     List<Optional<MoveKey>> rootPreferences = new ArrayList<>();
     TacticalMoveOrderingStrategy tactical = new TacticalMoveOrderingStrategy();
     MoveOrderingStrategy strategy = (position, moves, preferred) -> {
-      if (position == board) {
+      if (position.getSideToMove() == board.getSideToMove()
+          && position.toString().equals(initialBoard)) {
         rootPreferences.add(preferred);
       }
       return tactical.order(position, moves, preferred);
@@ -55,12 +57,14 @@ class IterativeDeepeningEngineTest {
   @Test
   void shouldReturnLastCompletedIterationWhenTimeExpires() {
     Board board = Board.standard();
+    String initialBoard = board.toString();
     AtomicLong clock = new AtomicLong();
     TacticalMoveOrderingStrategy tactical = new TacticalMoveOrderingStrategy();
     int[] rootOrders = {0};
     MoveOrderingStrategy strategy = (position, moves, preferred) -> {
       var ordered = tactical.order(position, moves, preferred);
-      if (position == board && ++rootOrders[0] == 2) {
+      if (position.getSideToMove() == board.getSideToMove()
+          && position.toString().equals(initialBoard) && ++rootOrders[0] == 2) {
         clock.set(1);
       }
       return ordered;
@@ -94,7 +98,9 @@ class IterativeDeepeningEngineTest {
     Board board = Board.standard();
     String initialBoard = board.toString();
     AtomicLong clock = new AtomicLong();
+    AtomicReference<Board> workingBoard = new AtomicReference<>();
     PositionEvaluator evaluator = (position, perspective) -> {
+      workingBoard.set(position);
       clock.set(1);
       return 0;
     };
@@ -105,6 +111,8 @@ class IterativeDeepeningEngineTest {
         () -> engine.findBestMove(board, new SearchLimits(1), Duration.ofNanos(1)));
     assertEquals(initialBoard, board.toString());
     assertEquals(Color.WHITE, board.getSideToMove());
+    assertEquals(initialBoard, workingBoard.get().toString());
+    assertEquals(Color.WHITE, workingBoard.get().getSideToMove());
   }
 
   @Test

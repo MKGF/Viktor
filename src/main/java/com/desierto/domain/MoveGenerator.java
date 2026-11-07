@@ -77,10 +77,13 @@ public class MoveGenerator {
       Color moverColor) {
     List<Move> legalMoves = new ArrayList<>();
     for (Move move : candidateMoves) {
-      Board resultingBoard = board.copy();
-      resultingBoard.applyGeneratedMove(move);
-      if (!attackDetector.isKingInCheck(resultingBoard, moverColor)) {
-        legalMoves.add(move);
+      Board.UndoState state = board.makeTemporaryMove(move);
+      try {
+        if (!attackDetector.isKingInCheck(board, moverColor)) {
+          legalMoves.add(move);
+        }
+      } finally {
+        board.restoreTemporaryMove(state);
       }
     }
     return List.copyOf(legalMoves);

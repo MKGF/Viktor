@@ -9,9 +9,28 @@ import com.desierto.domain.pieces.King;
 import com.desierto.domain.pieces.Pawn;
 import com.desierto.domain.pieces.Queen;
 import com.desierto.domain.pieces.Rook;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class BoardTest {
+
+  @Test
+  void shouldReturnOrderedImmutableSnapshotsOfPiecesByColor() {
+    Board board = Board.standard();
+    List<Piece> whitePieces = board.getPieces(Color.WHITE);
+    List<Piece> blackPieces = board.getPieces(Color.BLACK);
+
+    assertEquals(board.getPieces().stream().filter(piece -> piece.getColor() == Color.WHITE).toList(),
+        whitePieces);
+    assertEquals(board.getPieces().stream().filter(piece -> piece.getColor() == Color.BLACK).toList(),
+        blackPieces);
+    assertThrows(UnsupportedOperationException.class, () -> whitePieces.clear());
+
+    board.removePiece(Cell.A2);
+    assertEquals(16, whitePieces.size());
+    assertEquals(15, board.getPieces(Color.WHITE).size());
+    assertEquals(blackPieces, board.getPieces(Color.BLACK));
+  }
 
   @Test
   void shouldCreateStandardPosition() {
