@@ -1,7 +1,7 @@
 # TODO - Motor de ajedrez
 
-Hoja de ruta del proyecto. La base de reglas está completada y el trabajo actual se centra en
-convertirla en un motor de búsqueda.
+Hoja de ruta del proyecto. El motor ya dispone de búsqueda y de una integración UCI básica;
+la siguiente mejora prevista es la evaluación posicional.
 
 ## 1. Base del dominio
 
@@ -79,8 +79,16 @@ convertirla en un motor de búsqueda.
   legales. La extensión se limita a ocho medias jugadas y entonces se evalúa incluso en jaque.
   Está activada por defecto en alpha-beta y búsqueda iterativa; puede desactivarse con el
   constructor que recibe `false`.
+- [ ] Añadir evaluación posicional gradual, empezando por tablas pieza-casilla, desarrollo
+  y seguridad del rey. La evaluación actual solo considera material, mates y tablas, por lo que
+  puede puntuar igual jugadas de apertura con distinta calidad posicional.
+- [ ] Añadir pruebas de evaluación y selección de jugadas en aperturas y otras posiciones,
+  manteniendo las pruebas tácticas existentes. Comprobar ambos colores y evitar depender de
+  una única jugada cuando haya varias opciones razonables.
+- [ ] Evaluar más adelante la incorporación opcional de un libro de aperturas como complemento
+  a la evaluación, no como sustituto de esta.
 
-## 7. Rendimiento (etapa actual completada)
+## 7. Rendimiento (etapa inicial completada)
 
 - [x] Medir tiempos de generación y búsqueda, profundidad alcanzada y nodos por segundo.
   `com.desierto.benchmark.SearchBenchmark` mide las posiciones inicial, táctica y final, con y
@@ -132,6 +140,8 @@ convertirla en un motor de búsqueda.
 - [x] Aplicar en consola un límite de tiempo por jugada configurable mediante búsqueda iterativa.
 - [x] Añadir integración UCI básica para GUIs, con posiciones FEN, historial de jugadas,
   búsqueda interrumpible, profundidad y control de tiempo.
+- [x] Crear un ejecutable UCI autocontenido para Windows con `build-uci.ps1`.
+- [x] Informar del resultado y contexto de cada búsqueda en consola y mediante diagnósticos UCI.
 - [ ] Ampliar UCI con opciones adicionales si se necesitan: ponderación, `searchmoves` y
   límites de nodos, entre otras.
 
@@ -150,16 +160,10 @@ convertirla en un motor de búsqueda.
 - [x] Test de selección táctica del buscador: ganancia de material, defensa y mate.
 - [x] Test de rendimiento y número de nodos al añadir optimizaciones.
 
-## Orden de trabajo actual
+## Próximos pasos
 
-1. Definir la API de búsqueda y su resultado.
-2. Implementar minimax a profundidad fija.
-3. Añadir puntuación por distancia al mate y pruebas tácticas.
-4. Integrar alpha-beta pruning.
-5. Mejorar la ordenación de movimientos.
-6. Incorporar iterative deepening y límite de tiempo.
-7. Añadir quiescence search.
-8. Medir rendimiento.
-9. Añadir hashing Zobrist y tabla de transposiciones.
-10. Optimizar a partir de las mediciones (etapa actual completada; mejoras posteriores opcionales).
-11. Crear la interfaz de consola e integración UCI básica (completadas).
+1. Diseñar e implementar la evaluación posicional con pruebas de calidad de jugada y regresión.
+2. Evaluar posteriormente un libro de aperturas opcional.
+
+Las mejoras de reglas, rendimiento y UCI pendientes anteriores siguen siendo opcionales y se
+abordarán cuando sean necesarias.
