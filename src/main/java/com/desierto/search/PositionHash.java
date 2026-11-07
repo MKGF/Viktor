@@ -18,6 +18,7 @@ final class PositionHash {
   private static final long[][][][] PIECES = new long[2][6][64][2];
   private static final long[] CASTLING = new long[4];
   private static final long[] EN_PASSANT = new long[64];
+  private static final long[] HALF_MOVE_CLOCK = new long[151];
   private static final long BLACK_TO_MOVE;
 
   static {
@@ -36,6 +37,9 @@ final class PositionHash {
     }
     for (int i = 0; i < EN_PASSANT.length; i++) {
       EN_PASSANT[i] = random.nextLong();
+    }
+    for (int i = 0; i < HALF_MOVE_CLOCK.length; i++) {
+      HALF_MOVE_CLOCK[i] = random.nextLong();
     }
     BLACK_TO_MOVE = random.nextLong();
   }
@@ -68,6 +72,8 @@ final class PositionHash {
     if (board.getEnPassantTarget().isPresent()) {
       hash ^= EN_PASSANT[square(board.getEnPassantTarget().orElseThrow())];
     }
+    hash ^= HALF_MOVE_CLOCK[Math.min(board.getHalfmoveClock(), 150)];
+    hash ^= board.repetitionHistoryFingerprint();
     return hash;
   }
 

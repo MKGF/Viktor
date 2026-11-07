@@ -2,6 +2,7 @@ package com.desierto.search;
 
 import com.desierto.domain.Board;
 import com.desierto.domain.Color;
+import com.desierto.domain.DrawDetector;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
@@ -91,10 +92,17 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       context.checkTime();
       return new SearchResult(Optional.empty(), perspective, score, 0, context.nodes());
     }
+    if (DrawDetector.isDeadByInsufficientMaterial(workingBoard)
+        || DrawDetector.isSeventyFiveMoveDraw(workingBoard, moveGenerator)
+        || DrawDetector.isThreefoldRepetitionDraw(workingBoard, moveGenerator)) {
+      context.checkTime();
+      return new SearchResult(Optional.empty(), perspective, 0, 0, context.nodes());
+    }
 
+    Optional<DrawClaim> claim = SearchDrawRules.claim(workingBoard, legalMoves);
     Move bestMove = null;
-    int bestScore = Integer.MIN_VALUE;
-    int alpha = Integer.MIN_VALUE;
+    int bestScore = claim.isPresent() ? 0 : Integer.MIN_VALUE;
+    int alpha = bestScore;
     int beta = Integer.MAX_VALUE;
     List<LegalMove> orderedMoves = moveOrderingStrategy.order(workingBoard, legalMoves, preferredMove);
     context.checkTime();
@@ -111,6 +119,11 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       alpha = Math.max(alpha, bestScore);
     }
     context.checkTime();
+    if (bestMove == null && claim.isPresent()) {
+      Optional<Move> intended = claim.orElseThrow().intendedMove().map(position::originalMove);
+      return new SearchResult(Optional.empty(), perspective, 0, limits.maxDepth(), context.nodes(),
+          Optional.of(new DrawClaim(intended)));
+    }
     return new SearchResult(Optional.of(position.originalMove(bestMove)), perspective, bestScore, limits.maxDepth(),
         context.nodes());
   }
@@ -122,8 +135,20 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       return quiescenceSearch.search(position, perspective, plyFromRoot, alpha, beta, context);
     }
     context.visitPosition();
+    if (DrawDetector.isDeadByInsufficientMaterial(board)) {
+      context.checkTime();
+      return 0;
+    }
+    if (DrawDetector.isSeventyFiveMoveDraw(board, moveGenerator)
+        || DrawDetector.isThreefoldRepetitionDraw(board, moveGenerator)) {
+      context.checkTime();
+      return 0;
+    }
     if (remainingDepth == 0) {
       int score = evaluator.evaluate(board, perspective, plyFromRoot);
+      if (SearchDrawRules.canClaim(board, moveGenerator)) {
+        score = SearchDrawRules.withClaimOption(score, board, perspective);
+      }
       context.checkTime();
       return score;
     }
@@ -152,7 +177,8 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
     }
 
     if (board.getSideToMove() == perspective) {
-      int bestScore = Integer.MIN_VALUE;
+      int bestScore = SearchDrawRules.claim(board, legalMoves).isPresent() ? 0 : Integer.MIN_VALUE;
+      alpha = Math.max(alpha, bestScore);
       for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
         int score;
         try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
@@ -171,7 +197,8 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       return bestScore;
     }
 
-    int bestScore = Integer.MAX_VALUE;
+    int bestScore = SearchDrawRules.claim(board, legalMoves).isPresent() ? 0 : Integer.MAX_VALUE;
+    beta = Math.min(beta, bestScore);
     for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
       int score;
       try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {

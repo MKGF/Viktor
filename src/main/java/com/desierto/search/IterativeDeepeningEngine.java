@@ -4,6 +4,8 @@ import com.desierto.domain.Board;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 public final class IterativeDeepeningEngine implements SearchEngine {
@@ -30,7 +32,18 @@ public final class IterativeDeepeningEngine implements SearchEngine {
 
   @Override
   public SearchResult findBestMove(Board board, SearchLimits limits) {
-    return search(board, limits, new FixedDepthAlphaBetaEngine.SearchContext());
+    return search(board, limits, new FixedDepthAlphaBetaEngine.SearchContext(), result -> {});
+  }
+
+  /**
+   * Searches until the requested depth or cancellation and reports each completed iteration.
+   * If cancelled before an iteration completes, throws {@link SearchTimeoutException}.
+   */
+  public SearchResult findBestMove(Board board, SearchLimits limits, BooleanSupplier cancelled,
+      Consumer<SearchResult> onIteration) {
+    Objects.requireNonNull(cancelled, "cancelled must not be null");
+    Objects.requireNonNull(onIteration, "onIteration must not be null");
+    return search(board, limits, new FixedDepthAlphaBetaEngine.SearchContext(cancelled), onIteration);
   }
 
   /**
@@ -54,11 +67,11 @@ public final class IterativeDeepeningEngine implements SearchEngine {
     }
     long start = nanoTime.getAsLong();
     return search(board, limits, new FixedDepthAlphaBetaEngine.SearchContext(
-        () -> nanoTime.getAsLong() - start >= limitNanos));
+        () -> nanoTime.getAsLong() - start >= limitNanos), result -> {});
   }
 
   private SearchResult search(Board board, SearchLimits limits,
-      FixedDepthAlphaBetaEngine.SearchContext context) {
+      FixedDepthAlphaBetaEngine.SearchContext context, Consumer<SearchResult> onIteration) {
     Objects.requireNonNull(board, "board must not be null");
     Objects.requireNonNull(limits, "limits must not be null");
     SearchResult completed = null;
@@ -71,9 +84,11 @@ public final class IterativeDeepeningEngine implements SearchEngine {
           throw new SearchTimeoutException();
         }
         return new SearchResult(completed.bestMove(), completed.perspective(), completed.score(),
-            completed.depth(), context.nodes());
+            completed.depth(), context.nodes(), completed.drawClaim());
       }
-      if (completed.bestMove().isEmpty() || depth == limits.maxDepth()) {
+      onIteration.accept(completed);
+      if ((completed.bestMove().isEmpty() && completed.drawClaim().isEmpty())
+          || depth == limits.maxDepth()) {
         return completed;
       }
       preferredMove = completed.bestMove().map(MoveKey::from);

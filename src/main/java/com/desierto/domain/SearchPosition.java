@@ -27,8 +27,11 @@ public final class SearchPosition {
 
   public MoveScope apply(LegalMove move) {
     Objects.requireNonNull(move, "move must not be null").validateSource(board);
+    RepetitionPosition previousPosition = board.repetitionPosition();
+    RepetitionHistory.Node checkpoint = board.repetitionCheckpoint();
     Board.UndoState state = board.makeTemporaryMove(move.move());
-    MoveScope scope = new MoveScope(state, activeScope, board.positionVersion());
+    board.addRepetitionPosition(previousPosition, move.move());
+    MoveScope scope = new MoveScope(state, checkpoint, activeScope, board.positionVersion());
     activeScope = scope;
     return scope;
   }
@@ -52,11 +55,14 @@ public final class SearchPosition {
   public final class MoveScope implements AutoCloseable {
 
     private final Board.UndoState state;
+    private final RepetitionHistory.Node checkpoint;
     private final MoveScope previous;
     private final long appliedVersion;
 
-    private MoveScope(Board.UndoState state, MoveScope previous, long appliedVersion) {
+    private MoveScope(Board.UndoState state, RepetitionHistory.Node checkpoint, MoveScope previous,
+        long appliedVersion) {
       this.state = state;
+      this.checkpoint = checkpoint;
       this.previous = previous;
       this.appliedVersion = appliedVersion;
     }
@@ -67,6 +73,7 @@ public final class SearchPosition {
         throw new IllegalStateException("Search moves must be undone in order without changing the board");
       }
       board.restoreTemporaryMove(state);
+      board.restoreRepetitionCheckpoint(checkpoint);
       activeScope = previous;
     }
   }

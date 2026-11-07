@@ -1,8 +1,5 @@
-package com.desierto.console;
+package com.desierto.domain;
 
-import com.desierto.domain.Cell;
-import com.desierto.domain.Move;
-import com.desierto.domain.Piece;
 import com.desierto.domain.pieces.Bishop;
 import com.desierto.domain.pieces.Knight;
 import com.desierto.domain.pieces.Queen;
@@ -11,16 +8,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-final class MoveNotation {
+public final class MoveNotation {
 
   private MoveNotation() {
   }
 
-  static boolean hasValidFormat(String input) {
+  public static boolean hasValidFormat(String input) {
     return input.matches("[a-h][1-8][a-h][1-8][qrbn]?");
   }
 
-  static Optional<Move> find(String input, List<Move> legalMoves) {
+  public static Optional<Move> find(String input, List<Move> legalMoves) {
     Cell from = Cell.fromAlgebraic(input.substring(0, 2));
     Cell to = Cell.fromAlgebraic(input.substring(2, 4));
     char promotion = input.length() == 5 ? input.charAt(4) : '\0';
@@ -30,7 +27,7 @@ final class MoveNotation {
         .findFirst();
   }
 
-  static String format(Move move) {
+  public static String format(Move move) {
     String result = (move.from().toAlgebraic() + move.to().toAlgebraic()).toLowerCase(Locale.ROOT);
     char promotion = promotionSymbol(move.promotionPiece());
     return promotion == '\0' ? result : result + promotion;

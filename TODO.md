@@ -38,6 +38,14 @@ convertirla en un motor de búsqueda.
 - [x] Detectar jaque.
 - [x] Detectar jaque mate.
 - [x] Detectar ahogado.
+- [x] Detectar posiciones muertas por material en los casos reconocidos: reyes solos, un alfil
+  o caballo contra un rey, o solo alfiles en casillas del mismo color.
+- [ ] Ampliar la detección de posiciones muertas más allá de esos casos de material.
+- [x] Implementar la reclamación de tablas por 50 jugadas y las tablas automáticas por 75 jugadas,
+  incluida la prioridad del mate y la reclamación con una jugada anunciada.
+- [x] Detectar la triple repetición y terminar la partida automáticamente por decisión de diseño.
+- [ ] Si se adoptan las reglas oficiales de repetición, permitir reclamar por triple repetición
+  e implementar las tablas automáticas por quíntuple repetición.
 
 ## 5. Aplicación y deshacer
 
@@ -88,13 +96,15 @@ convertirla en un motor de búsqueda.
 
 - [x] Añadir transposition table con hashing Zobrist para reutilizar posiciones repetidas.
   La tabla tiene 65536 entradas y pertenece a una búsqueda, incluidas sus iteraciones. El hash
-  cubre piezas, color, posición, indicador de movimiento, turno, enroque y casilla en passant.
+  cubre piezas, color, posición, indicador de movimiento, turno, enroque, casilla en passant y
+  contador de medio-movimientos y una huella del historial de repetición.
   Solo se reutilizan puntuaciones a la misma profundidad restante y distancia desde la raíz;
   las cotas alpha-beta se aplican según su tipo. Quiescence no se almacena en la tabla.
   Se activa por defecto y puede desactivarse con el segundo parámetro booleano de los
   constructores de `FixedDepthAlphaBetaEngine` e `IterativeDeepeningEngine`.
-  La implementación actual no evalúa tablas por repetición ni por los contadores de jugadas;
-  cuando se implementen esas reglas deberá revisarse la identidad de las posiciones en la tabla.
+  La huella incluye el recuento de las posiciones relevantes desde el último movimiento de
+  peón o captura, por lo que las transposiciones con contextos diferentes no comparten
+  puntuaciones.
 
 - [x] Evitar listas intermedias al obtener las piezas de un color.
 
@@ -120,7 +130,10 @@ convertirla en un motor de búsqueda.
 - [x] Mostrar tablero en texto.
 - [x] Leer movimientos por coordenadas, incluidas las promociones. El uso se explica en `README.md`.
 - [x] Aplicar en consola un límite de tiempo por jugada configurable mediante búsqueda iterativa.
-- [ ] Definir formato UCI si se quiere integrar con GUIs externas.
+- [x] Añadir integración UCI básica para GUIs, con posiciones FEN, historial de jugadas,
+  búsqueda interrumpible, profundidad y control de tiempo.
+- [ ] Ampliar UCI con opciones adicionales si se necesitan: ponderación, `searchmoves` y
+  límites de nodos, entre otras.
 
 ## 9. Tests
 
@@ -149,4 +162,4 @@ convertirla en un motor de búsqueda.
 8. Medir rendimiento.
 9. Añadir hashing Zobrist y tabla de transposiciones.
 10. Optimizar a partir de las mediciones (etapa actual completada; mejoras posteriores opcionales).
-11. Crear la interfaz de consola (completada) y, si procede, UCI.
+11. Crear la interfaz de consola e integración UCI básica (completadas).

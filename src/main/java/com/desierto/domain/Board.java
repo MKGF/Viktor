@@ -16,6 +16,7 @@ public class Board {
 
   private final Piece[][] squares;
   private final PositionHistory history;
+  private final RepetitionHistory repetitionHistory;
   private Move lastMove;
   private Color sideToMove;
   private boolean whiteKingsideCastleRight;
@@ -31,6 +32,7 @@ public class Board {
   public Board() {
     this.squares = new Piece[8][8];
     this.history = new PositionHistory();
+    this.repetitionHistory = new RepetitionHistory();
     this.sideToMove = Color.WHITE;
     this.whiteKingsideCastleRight = true;
     this.whiteQueensideCastleRight = true;
@@ -61,6 +63,7 @@ public class Board {
     copy.fullmoveNumber = fullmoveNumber;
     copy.positionVersion = positionVersion;
     copy.positionSequence = positionSequence;
+    copy.repetitionHistory.replaceWith(repetitionHistory);
     for (int row = 0; row < 8; row++) {
       for (int column = 0; column < 8; column++) {
         Piece piece = squares[row][column];
@@ -76,7 +79,9 @@ public class Board {
   Board copyAfterGeneratedMove(Move move) {
     Objects.requireNonNull(move, "move must not be null");
     Board copy = copy();
+    RepetitionPosition previous = RepetitionPosition.of(copy);
     copy.applyGeneratedMove(move);
+    copy.repetitionHistory.add(previous, isIrreversible(move));
     return copy;
   }
 
@@ -99,6 +104,7 @@ public class Board {
       throw new IllegalArgumentException("Piece position must match the target square");
     }
     squares[cell.row()][cell.column()] = piece;
+    repetitionHistory.clear();
     advancePositionVersion();
   }
 
@@ -120,6 +126,7 @@ public class Board {
     }
     this.halfmoveClock = halfmoveClock;
     this.fullmoveNumber = fullmoveNumber;
+    repetitionHistory.clear();
     advancePositionVersion();
   }
 
@@ -127,6 +134,7 @@ public class Board {
     validateCell(cell);
     Piece piece = squares[cell.row()][cell.column()];
     squares[cell.row()][cell.column()] = null;
+    repetitionHistory.clear();
     advancePositionVersion();
     return Optional.ofNullable(piece);
   }
@@ -134,9 +142,11 @@ public class Board {
   public void makeMove(Move move) {
     Objects.requireNonNull(move, "move must not be null");
     validateLegalMove(move);
+    RepetitionPosition previous = RepetitionPosition.of(this);
     history.save(copy());
     try {
       applyMoveInternal(move);
+      repetitionHistory.add(previous, isIrreversible(move));
     } catch (RuntimeException ex) {
       history.restore();
       throw ex;
@@ -218,6 +228,37 @@ public class Board {
 
   long positionVersion() {
     return positionVersion;
+  }
+
+  /** Counts the current position together with relevant positions from the game or search path. */
+  public boolean isThreefoldRepetition() {
+    return repetitionHistory.mayRepeat()
+        && repetitionHistory.containsTwice(RepetitionPosition.of(this));
+  }
+
+  /** Returns a fingerprint of the previous-position counts for transposition caching. */
+  public long repetitionHistoryFingerprint() {
+    return repetitionHistory.fingerprint();
+  }
+
+  RepetitionPosition repetitionPosition() {
+    return RepetitionPosition.of(this);
+  }
+
+  RepetitionHistory.Node repetitionCheckpoint() {
+    return repetitionHistory.checkpoint();
+  }
+
+  void addRepetitionPosition(RepetitionPosition position, Move move) {
+    repetitionHistory.add(position, isIrreversible(move));
+  }
+
+  void restoreRepetitionCheckpoint(RepetitionHistory.Node checkpoint) {
+    repetitionHistory.restore(checkpoint);
+  }
+
+  private static boolean isIrreversible(Move move) {
+    return move.piece() instanceof Pawn || move.isCapture();
   }
 
   public void undoMove() {
@@ -368,6 +409,7 @@ public class Board {
     enPassantTarget = snapshot.enPassantTarget;
     halfmoveClock = snapshot.halfmoveClock;
     fullmoveNumber = snapshot.fullmoveNumber;
+    repetitionHistory.replaceWith(snapshot.repetitionHistory);
     advancePositionVersion();
   }
 

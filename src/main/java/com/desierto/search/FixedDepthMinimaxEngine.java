@@ -2,6 +2,7 @@ package com.desierto.search;
 
 import com.desierto.domain.Board;
 import com.desierto.domain.Color;
+import com.desierto.domain.DrawDetector;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
@@ -41,9 +42,15 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
       return new SearchResult(Optional.empty(), perspective, evaluator.evaluate(workingBoard, perspective, 0), 0,
           context.nodes());
     }
+    if (DrawDetector.isDeadByInsufficientMaterial(workingBoard)
+        || DrawDetector.isSeventyFiveMoveDraw(workingBoard, moveGenerator)
+        || DrawDetector.isThreefoldRepetitionDraw(workingBoard, moveGenerator)) {
+      return new SearchResult(Optional.empty(), perspective, 0, 0, context.nodes());
+    }
 
+    Optional<DrawClaim> claim = SearchDrawRules.claim(workingBoard, legalMoves);
     Move bestMove = null;
-    int bestScore = Integer.MIN_VALUE;
+    int bestScore = claim.isPresent() ? 0 : Integer.MIN_VALUE;
     for (LegalMove legalMove : legalMoves) {
       Move move = legalMove.move();
       int score;
@@ -55,6 +62,11 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
         bestMove = move;
       }
     }
+    if (bestMove == null && claim.isPresent()) {
+      Optional<Move> intended = claim.orElseThrow().intendedMove().map(position::originalMove);
+      return new SearchResult(Optional.empty(), perspective, 0, limits.maxDepth(), context.nodes(),
+          Optional.of(new DrawClaim(intended)));
+    }
     return new SearchResult(Optional.of(position.originalMove(bestMove)), perspective, bestScore, limits.maxDepth(),
         context.nodes());
   }
@@ -63,8 +75,17 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
       SearchContext context) {
     Board board = position.board();
     context.visitPosition();
+    if (DrawDetector.isDeadByInsufficientMaterial(board)) {
+      return 0;
+    }
+    if (DrawDetector.isSeventyFiveMoveDraw(board, moveGenerator)
+        || DrawDetector.isThreefoldRepetitionDraw(board, moveGenerator)) {
+      return 0;
+    }
     if (remainingDepth == 0) {
-      return evaluator.evaluate(board, perspective, plyFromRoot);
+      int score = evaluator.evaluate(board, perspective, plyFromRoot);
+      return SearchDrawRules.canClaim(board, moveGenerator)
+          ? SearchDrawRules.withClaimOption(score, board, perspective) : score;
     }
 
     List<LegalMove> legalMoves = moveGenerator.generateLegalMoveApplications(board,
@@ -74,7 +95,8 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
     }
 
     boolean maximizesScore = board.getSideToMove() == perspective;
-    int bestScore = maximizesScore ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+    int bestScore = SearchDrawRules.claim(board, legalMoves).isPresent()
+        ? 0 : maximizesScore ? Integer.MIN_VALUE : Integer.MAX_VALUE;
     for (LegalMove legalMove : legalMoves) {
       int score;
       try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {

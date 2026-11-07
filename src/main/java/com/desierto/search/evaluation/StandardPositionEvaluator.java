@@ -2,6 +2,7 @@ package com.desierto.search.evaluation;
 
 import com.desierto.domain.Board;
 import com.desierto.domain.Color;
+import com.desierto.domain.DrawDetector;
 import com.desierto.domain.MoveGenerator;
 import java.util.Objects;
 
@@ -39,7 +40,10 @@ public final class StandardPositionEvaluator implements PositionEvaluator {
       int score = CHECKMATE_SCORE - plyFromRoot;
       return sideToMove == perspective ? -score : score;
     }
-    if (moveGenerator.isStalemate(board, sideToMove)) {
+    if (DrawDetector.isSeventyFiveMoveDraw(board, moveGenerator)
+        || board.isThreefoldRepetition()
+        || moveGenerator.isStalemate(board, sideToMove)
+        || DrawDetector.isDeadByInsufficientMaterial(board)) {
       return 0;
     }
     return materialEvaluator.evaluate(board, perspective);

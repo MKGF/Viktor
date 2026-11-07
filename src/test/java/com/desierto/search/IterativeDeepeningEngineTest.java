@@ -19,9 +19,24 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
 class IterativeDeepeningEngineTest {
+
+  @Test
+  void cancellationReturnsTheLastReportedIteration() {
+    AtomicBoolean cancelled = new AtomicBoolean();
+    List<SearchResult> iterations = new ArrayList<>();
+    SearchResult result = new IterativeDeepeningEngine().findBestMove(Board.standard(),
+        new SearchLimits(5), cancelled::get, completed -> {
+          iterations.add(completed);
+          cancelled.set(true);
+        });
+    assertEquals(1, iterations.size());
+    assertEquals(iterations.getFirst().bestMove(), result.bestMove());
+    assertEquals(1, result.depth());
+  }
 
   @Test
   void shouldCompleteEveryDepthAndReuseThePreviousBestMove() {

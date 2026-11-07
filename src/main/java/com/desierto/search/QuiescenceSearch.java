@@ -2,6 +2,7 @@ package com.desierto.search;
 
 import com.desierto.domain.Board;
 import com.desierto.domain.Color;
+import com.desierto.domain.DrawDetector;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.SearchPosition;
@@ -50,8 +51,22 @@ final class QuiescenceSearch {
       int alpha, int beta, FixedDepthAlphaBetaEngine.SearchContext context) {
     Board board = position.board();
     context.visitPosition();
+    if (DrawDetector.isDeadByInsufficientMaterial(board)) {
+      context.checkTime();
+      return 0;
+    }
+    if (DrawDetector.isSeventyFiveMoveDraw(board, moveGenerator)
+        || DrawDetector.isThreefoldRepetitionDraw(board, moveGenerator)) {
+      context.checkTime();
+      return 0;
+    }
     if (quiescencePly == maxPly) {
-      return evaluate(board, perspective, plyFromRoot, context);
+      int score = evaluate(board, perspective, plyFromRoot, context);
+      if (SearchDrawRules.canClaim(board, moveGenerator)) {
+        score = SearchDrawRules.withClaimOption(score, board, perspective);
+      }
+      context.checkTime();
+      return score;
     }
 
     List<LegalMove> legalMoves = moveGenerator.generateLegalMoveApplications(board,
@@ -64,25 +79,30 @@ final class QuiescenceSearch {
     boolean inCheck = moveGenerator.isKingInCheck(board, board.getSideToMove());
     context.checkTime();
     boolean maximizing = board.getSideToMove() == perspective;
+    boolean canClaim = SearchDrawRules.claim(board, legalMoves).isPresent();
     int bestScore;
     if (inCheck) {
-      bestScore = maximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+      bestScore = canClaim ? 0 : maximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE;
     } else {
       bestScore = evaluate(board, perspective, plyFromRoot, context);
-      if (maximizing) {
-        if (bestScore >= beta) {
-          return bestScore;
-        }
-        alpha = Math.max(alpha, bestScore);
-      } else {
-        if (bestScore <= alpha) {
-          return bestScore;
-        }
-        beta = Math.min(beta, bestScore);
+      if (canClaim) {
+        bestScore = SearchDrawRules.withClaimOption(bestScore, board, perspective);
       }
       legalMoves = legalMoves.stream()
           .filter(move -> move.move().isCapture() || move.move().isPromotion())
           .toList();
+    }
+
+    if (maximizing) {
+      if (bestScore >= beta) {
+        return bestScore;
+      }
+      alpha = Math.max(alpha, bestScore);
+    } else {
+      if (bestScore <= alpha) {
+        return bestScore;
+      }
+      beta = Math.min(beta, bestScore);
     }
 
     if (legalMoves.isEmpty()) {

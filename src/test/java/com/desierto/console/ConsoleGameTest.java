@@ -11,6 +11,8 @@ import com.desierto.domain.Cell;
 import com.desierto.domain.Color;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
+import com.desierto.domain.MoveNotation;
+import com.desierto.domain.pieces.Bishop;
 import com.desierto.domain.pieces.King;
 import com.desierto.domain.pieces.Knight;
 import com.desierto.domain.pieces.Pawn;
@@ -18,6 +20,8 @@ import com.desierto.domain.pieces.Queen;
 import com.desierto.domain.pieces.Rook;
 import com.desierto.console.ConsoleGame.TimedSearch;
 import com.desierto.search.SearchLimits;
+import com.desierto.search.DrawClaim;
+import com.desierto.search.IterativeDeepeningEngine;
 import com.desierto.search.SearchResult;
 import com.desierto.search.SearchTimeoutException;
 import java.io.BufferedReader;
@@ -34,6 +38,27 @@ import org.junit.jupiter.api.Test;
 class ConsoleGameTest {
 
   private final MoveGenerator generator = new MoveGenerator();
+
+  @Test
+  void shouldEndAutomaticallyWhenTheEngineCompletesThreefoldRepetition() throws IOException {
+    Board board = Board.standard();
+    String output = play(board, Color.WHITE, moves("g8f6", "f6g8", "g8f6", "f6g8"),
+        "g1f3\nf3g1\ng1f3\nf3g1\n");
+
+    assertTrue(output.contains("Draw by threefold repetition."));
+    assertTrue(board.isThreefoldRepetition());
+    assertFalse(output.contains("Game ended."));
+  }
+
+  @Test
+  void shouldEndAutomaticallyWhenTheHumanCompletesThreefoldRepetition() throws IOException {
+    Board board = Board.standard();
+    String output = play(board, Color.BLACK, moves("g1f3", "f3g1", "g1f3", "f3g1"),
+        "g8f6\nf6g8\ng8f6\nf6g8\n");
+
+    assertTrue(output.contains("Draw by threefold repetition."));
+    assertTrue(board.isThreefoldRepetition());
+  }
 
   @Test
   void shouldRejectInvalidInputAndPlayAnExchange() throws IOException {
@@ -87,6 +112,84 @@ class ConsoleGameTest {
 
     assertTrue(output.contains("Draw by stalemate."));
     assertFalse(output.contains("Your move:"));
+  }
+
+  @Test
+  void shouldEndImmediatelyWhenACaptureLeavesInsufficientMaterial() throws IOException {
+    Board board = BoardFactory.position().castlingRights(false, false, false, false)
+        .place(new King(Color.WHITE, Cell.C3), Cell.C3)
+        .place(new Knight(Color.WHITE, Cell.A1), Cell.A1)
+        .place(new King(Color.BLACK, Cell.H8), Cell.H8)
+        .place(new Bishop(Color.BLACK, Cell.D4), Cell.D4).build();
+
+    String output = play(board, Color.WHITE, (position, limits, timeLimit) -> {
+      throw new AssertionError("Engine should not be called");
+    }, "c3d4\n");
+
+    assertTrue(output.contains("Draw by insufficient material."));
+    assertFalse(output.contains("Viktor is thinking"));
+  }
+
+  @Test
+  void shouldAllowClaimsOnlyAtTheThresholdOrWithAValidIntendedMove() throws IOException {
+    Board board = fiftyMovePosition(99);
+    String initial = board.toString();
+    String output = play(board, Color.WHITE, moves(), "claim\nclaim c2c3\nclaim b1b2\n");
+    assertTrue(output.contains("cannot be claimed in this position"));
+    assertTrue(output.contains("cannot be claimed with that move"));
+    assertTrue(output.contains("Draw claimed under the fifty-move rule with intended move b1b2."));
+    assertEquals(initial, board.toString());
+    assertEquals(99, board.getHalfmoveClock());
+
+    Board current = fiftyMovePosition(100);
+    assertTrue(play(current, Color.WHITE, moves(), "claim\n").contains("Draw claimed under the fifty-move rule."));
+  }
+
+  @Test
+  void shouldEndAtSeventyFiveMovesButGivePriorityToCheckmate() throws IOException {
+    Board board = fiftyMovePosition(149);
+    String output = play(board, Color.WHITE, moves(), "b1b2\n");
+    assertTrue(output.contains("Draw by the seventy-five-move rule."));
+    assertEquals(150, board.getHalfmoveClock());
+
+    Board mate = BoardFactory.position().halfmoveClock(150).castlingRights(false, false, false, false)
+        .place(new King(Color.WHITE, Cell.H1), Cell.H1)
+        .place(new Queen(Color.BLACK, Cell.G2), Cell.G2)
+        .place(new King(Color.BLACK, Cell.F3), Cell.F3).build();
+    String mateOutput = play(mate, Color.WHITE, moves(), "");
+    assertTrue(mateOutput.contains("Checkmate. Black wins."));
+    assertFalse(mateOutput.contains("seventy-five-move rule"));
+  }
+
+  @Test
+  void shouldReportAValidEngineClaimWithoutPlayingTheIntendedMove() throws IOException {
+    Board board = fiftyMovePosition(99);
+    String initial = board.toString();
+    String output = play(board, Color.BLACK, (position, limits, timeLimit) -> {
+      Move intended = MoveNotation.find("b1b2",
+          generator.generateLegalMoves(position, position.getSideToMove())).orElseThrow();
+      return new SearchResult(Optional.empty(), Color.WHITE, 0, 1, 1,
+          Optional.of(new DrawClaim(Optional.of(intended))));
+    }, "");
+    assertTrue(output.contains("Viktor claims a fifty-move draw with intended move b1b2."));
+    assertEquals(initial, board.toString());
+    assertEquals(99, board.getHalfmoveClock());
+  }
+
+  @Test
+  void shouldAcceptAClaimReturnedByTheRealEngine() throws IOException {
+    Board board = BoardFactory.position().halfmoveClock(99)
+        .castlingRights(false, false, false, false)
+        .place(new King(Color.WHITE, Cell.A1), Cell.A1)
+        .place(new Rook(Color.WHITE, Cell.B1), Cell.B1)
+        .place(new King(Color.BLACK, Cell.H8), Cell.H8)
+        .place(new Queen(Color.BLACK, Cell.F8), Cell.F8).build();
+    String initial = board.toString();
+    String output = play(board, Color.BLACK, new IterativeDeepeningEngine()::findBestMove, "");
+
+    assertTrue(output.contains("Viktor claims a fifty-move draw with intended move"));
+    assertEquals(initial, board.toString());
+    assertEquals(99, board.getHalfmoveClock());
   }
 
   @Test
@@ -205,6 +308,14 @@ class ConsoleGameTest {
     Move move = MoveNotation.find(notation, generator.generateLegalMoves(board, Color.WHITE)).orElseThrow();
     assertEquals(notation, MoveNotation.format(move));
     board.makeMove(move);
+  }
+
+  private Board fiftyMovePosition(int clock) {
+    return BoardFactory.position().halfmoveClock(clock).castlingRights(false, false, false, false)
+        .place(new King(Color.WHITE, Cell.A1), Cell.A1)
+        .place(new Rook(Color.WHITE, Cell.B1), Cell.B1)
+        .place(new Pawn(Color.WHITE, Cell.C2), Cell.C2)
+        .place(new King(Color.BLACK, Cell.H8), Cell.H8).build();
   }
 
   private TimedSearch moves(String... moves) {
