@@ -20,15 +20,20 @@ java -cp target\classes com.desierto.Viktor
 You can also run the `main` method of `com.desierto.Viktor` from IntelliJ IDEA. To change the
 options, set the program arguments in the run configuration.
 
-By default, you play White and Viktor searches to depth 3. To play Black or change the depth:
+By default, you play White and Viktor searches to a maximum depth of 3, with a limit of
+10 seconds per move. To play Black or change the depth and time limit:
 
 ```powershell
-java -cp target\classes com.desierto.Viktor --black --depth 4
+java -cp target\classes com.desierto.Viktor --black --depth 15 --time 5
 ```
 
-`--black` and `--depth N` are independent. The depth must be a positive integer. Higher depths
-can take much longer because this interface does not set a time limit per move. Use `--help` to
-see the startup options.
+`--black`, `--depth N` and `--time SECONDS` are independent. Depth and time must be positive
+whole numbers. The time limit may be at most 9223372036 seconds. Viktor searches progressively
+deeper positions and plays the best move from the last completed depth when the time expires;
+it may finish earlier if it reaches the maximum depth. The actual depth is displayed with its
+move. The deadline is checked between search operations, so it is not a strict real-time limit.
+If the first depth cannot be completed in time, Viktor reports the timeout and ends the game;
+restart with a higher time limit. Use `--help` to see the startup options.
 
 ## Playing
 

@@ -16,9 +16,10 @@ import com.desierto.domain.pieces.Knight;
 import com.desierto.domain.pieces.Pawn;
 import com.desierto.domain.pieces.Queen;
 import com.desierto.domain.pieces.Rook;
-import com.desierto.search.SearchEngine;
+import com.desierto.console.ConsoleGame.TimedSearch;
 import com.desierto.search.SearchLimits;
 import com.desierto.search.SearchResult;
+import com.desierto.search.SearchTimeoutException;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,6 +27,7 @@ import java.io.PrintStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -79,7 +81,7 @@ class ConsoleGameTest {
         .place(new Queen(Color.WHITE, Cell.G6), Cell.G6)
         .build();
 
-    String output = play(board, Color.BLACK, (position, limits) -> {
+    String output = play(board, Color.BLACK, (position, limits, timeLimit) -> {
       throw new AssertionError("Engine should not be called");
     }, "");
 
@@ -135,22 +137,66 @@ class ConsoleGameTest {
       @Override public void close() {
       }
     };
-    ConsoleGame humanGame = new ConsoleGame(Board.standard(), Color.WHITE, moves(), new SearchLimits(1));
+    ConsoleGame humanGame = new ConsoleGame(Board.standard(), Color.WHITE, moves(), new SearchLimits(1),
+        Duration.ofSeconds(1));
     PrintStream output = new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8);
     assertThrows(IOException.class, () -> humanGame.run(new BufferedReader(broken), output));
 
     ConsoleGame engineGame = new ConsoleGame(Board.standard(), Color.BLACK,
-        (board, limits) -> new SearchResult(Optional.empty(), Color.WHITE, 0, 0, 0),
-        new SearchLimits(1));
+        (board, limits, timeLimit) -> new SearchResult(Optional.empty(), Color.WHITE, 0, 0, 0),
+        new SearchLimits(1), Duration.ofSeconds(1));
     assertThrows(IllegalStateException.class,
         () -> engineGame.run(new BufferedReader(new StringReader("")), output));
   }
 
-  private String play(Board board, Color humanColor, SearchEngine engine, String commands)
+  @Test
+  void shouldPassDepthAndTimeLimitToTheEngine() throws IOException {
+    Board board = Board.standard();
+    Duration timeLimit = Duration.ofSeconds(7);
+    TimedSearch engine = (position, limits, allowedTime) -> {
+      assertEquals(15, limits.maxDepth());
+      assertEquals(timeLimit, allowedTime);
+      Move move = MoveNotation.find("e2e4",
+          generator.generateLegalMoves(position, position.getSideToMove())).orElseThrow();
+      return new SearchResult(Optional.of(move), position.getSideToMove(), 0, 4, 100);
+    };
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    new ConsoleGame(board, Color.BLACK, engine, new SearchLimits(15), timeLimit)
+        .run(new BufferedReader(new StringReader("quit\n")),
+            new PrintStream(bytes, true, StandardCharsets.UTF_8));
+
+    assertTrue(bytes.toString(StandardCharsets.UTF_8).contains("Viktor plays: e2e4 (depth 4)"));
+  }
+
+  @Test
+  void shouldInformTheUserAndEndTheGameWhenNoIterationCompletes() throws IOException {
+    Board board = Board.standard();
+    String initialPosition = board.toString();
+    String output = play(board, Color.BLACK, (position, limits, timeLimit) -> {
+      throw new SearchTimeoutException();
+    }, "");
+
+    assertTrue(output.contains("Search timed out before completing the first depth"));
+    assertTrue(output.contains("Game ended."));
+    assertFalse(output.contains("Viktor plays:"));
+    assertEquals(initialPosition, board.toString());
+    assertEquals(Color.WHITE, board.getSideToMove());
+  }
+
+  @Test
+  void shouldRejectInvalidTimeLimits() {
+    assertThrows(NullPointerException.class, () -> new ConsoleGame(Color.WHITE, 3, null));
+    assertThrows(IllegalArgumentException.class, () -> new ConsoleGame(Color.WHITE, 3, Duration.ZERO));
+    assertThrows(IllegalArgumentException.class, () -> new ConsoleGame(Color.WHITE, 3, Duration.ofSeconds(-1)));
+    assertThrows(IllegalArgumentException.class,
+        () -> new ConsoleGame(Color.WHITE, 3, Duration.ofSeconds(Long.MAX_VALUE)));
+  }
+
+  private String play(Board board, Color humanColor, TimedSearch engine, String commands)
       throws IOException {
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     PrintStream output = new PrintStream(bytes, true, StandardCharsets.UTF_8);
-    new ConsoleGame(board, humanColor, engine, new SearchLimits(1))
+    new ConsoleGame(board, humanColor, engine, new SearchLimits(1), Duration.ofSeconds(1))
         .run(new BufferedReader(new StringReader(commands)), output);
     return bytes.toString(StandardCharsets.UTF_8);
   }
@@ -161,9 +207,9 @@ class ConsoleGameTest {
     board.makeMove(move);
   }
 
-  private SearchEngine moves(String... moves) {
+  private TimedSearch moves(String... moves) {
     int[] index = {0};
-    return (board, limits) -> {
+    return (board, limits, timeLimit) -> {
       String notation = moves[index[0]++];
       Move move = MoveNotation.find(notation,
           generator.generateLegalMoves(board, board.getSideToMove())).orElseThrow();

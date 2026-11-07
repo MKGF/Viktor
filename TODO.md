@@ -119,6 +119,7 @@ convertirla en un motor de búsqueda.
 - [x] Crear entrada por consola para jugar contra Viktor.
 - [x] Mostrar tablero en texto.
 - [x] Leer movimientos por coordenadas, incluidas las promociones. El uso se explica en `README.md`.
+- [x] Aplicar en consola un límite de tiempo por jugada configurable mediante búsqueda iterativa.
 - [ ] Definir formato UCI si se quiere integrar con GUIs externas.
 
 ## 9. Tests
