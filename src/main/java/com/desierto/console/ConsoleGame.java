@@ -36,7 +36,7 @@ public final class ConsoleGame {
   public void run(BufferedReader input, PrintStream output) throws IOException {
     Objects.requireNonNull(input, "input must not be null");
     Objects.requireNonNull(output, "output must not be null");
-    output.println("Viktor: juegas con " + colorName(humanColor) + ". Escribe ayuda para ver los comandos.");
+    output.println("Viktor: you play " + colorName(humanColor) + ". Type help to see the commands.");
     output.println(board);
     while (true) {
       Color side = board.getSideToMove();
@@ -44,51 +44,52 @@ public final class ConsoleGame {
       boolean inCheck = generator.isKingInCheck(board, side);
       if (legalMoves.isEmpty()) {
         if (inCheck) {
-          output.println("Jaque mate. Ganan las " + colorName(side.opposite()) + ".");
+          output.println("Checkmate. " + colorName(side.opposite()) + " wins.");
         } else {
-          output.println("Tablas por ahogado.");
+          output.println("Draw by stalemate.");
         }
         return;
       }
       if (inCheck) {
-        output.println("Jaque a las " + colorName(side) + ".");
+        output.println(colorName(side) + " is in check.");
       }
       if (side == humanColor) {
-        output.print("Tu jugada: ");
+        output.print("Your move: ");
         output.flush();
         String line = input.readLine();
-        if (line == null || line.trim().equalsIgnoreCase("salir")) {
-          output.println("Partida terminada.");
+        if (line == null || line.trim().equalsIgnoreCase("quit")
+            || line.trim().equalsIgnoreCase("salir")) {
+          output.println("Game ended.");
           return;
         }
         String command = line.trim().toLowerCase(Locale.ROOT);
-        if (command.equals("ayuda")) {
-          output.println("Escribe origen y destino, por ejemplo e2e4. Promocion: e7e8q (q, r, b o n).");
-          output.println("Enroque: e1g1 o e1c1 para blancas; e8g8 o e8c8 para negras. Salir: salir.");
+        if (command.equals("help") || command.equals("ayuda")) {
+          output.println("Enter the starting and destination squares, for example e2e4. Promotion: e7e8q (q, r, b or n).");
+          output.println("Castling: e1g1 or e1c1 for White; e8g8 or e8c8 for Black. To exit: quit.");
           continue;
         }
         if (!MoveNotation.hasValidFormat(command)) {
-          output.println("Formato incorrecto. Ejemplo: e2e4; promocion: e7e8q.");
+          output.println("Invalid format. Example: e2e4; promotion: e7e8q.");
           continue;
         }
         var move = MoveNotation.find(command, legalMoves);
         if (move.isEmpty()) {
-          output.println("Jugada ilegal. Comprueba el turno y, si hay promocion, indica q, r, b o n.");
+          output.println("Illegal move. Check the position and specify q, r, b or n for a promotion.");
           continue;
         }
         board.makeMove(move.orElseThrow());
       } else {
-        output.println("Viktor esta pensando...");
+        output.println("Viktor is thinking...");
         Move move = engine.findBestMove(board, limits).bestMove()
-            .orElseThrow(() -> new IllegalStateException("El motor no devolvio una jugada en una posicion no terminal"));
+            .orElseThrow(() -> new IllegalStateException("The engine returned no move in a non-terminal position"));
         board.makeMove(move);
-        output.println("Viktor juega: " + MoveNotation.format(move));
+        output.println("Viktor plays: " + MoveNotation.format(move));
       }
       output.println(board);
     }
   }
 
   private static String colorName(Color color) {
-    return color == Color.WHITE ? "blancas" : "negras";
+    return color == Color.WHITE ? "White" : "Black";
   }
 }

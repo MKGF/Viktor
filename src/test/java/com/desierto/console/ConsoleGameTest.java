@@ -37,13 +37,13 @@ class ConsoleGameTest {
   void shouldRejectInvalidInputAndPlayAnExchange() throws IOException {
     Board board = Board.standard();
     String output = play(board, Color.WHITE, moves("e7e5"),
-        "ayuda\nz9z9\ne2e5\nE2E4\nsalir\n");
+        "help\nz9z9\ne2e5\nE2E4\nquit\n");
 
-    assertTrue(output.contains("Formato incorrecto"));
-    assertTrue(output.contains("Jugada ilegal"));
+    assertTrue(output.contains("Invalid format"));
+    assertTrue(output.contains("Illegal move"));
     assertTrue(output.contains("e7e8q"));
-    assertTrue(output.contains("Viktor juega: e7e5"));
-    assertTrue(output.contains("Partida terminada."));
+    assertTrue(output.contains("Viktor plays: e7e5"));
+    assertTrue(output.contains("Game ended."));
     assertTrue(board.getPieceAt(Cell.E4).orElseThrow() instanceof Pawn);
     assertEquals(Color.WHITE, board.getPieceAt(Cell.E4).orElseThrow().getColor());
     assertEquals(Color.BLACK, board.getPieceAt(Cell.E5).orElseThrow().getColor());
@@ -54,9 +54,9 @@ class ConsoleGameTest {
     Board board = Board.standard();
     String output = play(board, Color.BLACK, moves("e2e4"), "");
 
-    assertTrue(output.contains("juegas con negras"));
-    assertTrue(output.contains("Viktor juega: e2e4"));
-    assertTrue(output.contains("Partida terminada."));
+    assertTrue(output.contains("you play Black"));
+    assertTrue(output.contains("Viktor plays: e2e4"));
+    assertTrue(output.contains("Game ended."));
     assertEquals(Color.BLACK, board.getSideToMove());
   }
 
@@ -65,9 +65,9 @@ class ConsoleGameTest {
     Board board = Board.standard();
     String output = play(board, Color.WHITE, moves("e7e5", "d8h4"), "f2f3\ng2g4\n");
 
-    assertTrue(output.contains("Viktor juega: d8h4"));
-    assertTrue(output.contains("Jaque mate. Ganan las negras."));
-    assertFalse(output.contains("Partida terminada."));
+    assertTrue(output.contains("Viktor plays: d8h4"));
+    assertTrue(output.contains("Checkmate. Black wins."));
+    assertFalse(output.contains("Game ended."));
   }
 
   @Test
@@ -83,8 +83,8 @@ class ConsoleGameTest {
       throw new AssertionError("Engine should not be called");
     }, "");
 
-    assertTrue(output.contains("Tablas por ahogado."));
-    assertFalse(output.contains("Tu jugada:"));
+    assertTrue(output.contains("Draw by stalemate."));
+    assertFalse(output.contains("Your move:"));
   }
 
   @Test
@@ -94,10 +94,18 @@ class ConsoleGameTest {
         .place(new King(Color.BLACK, Cell.H8), Cell.H8)
         .place(new Pawn(Color.WHITE, Cell.A7), Cell.A7)
         .place(new Rook(Color.BLACK, Cell.B8), Cell.B8).build();
-    String output = play(board, Color.WHITE, moves("h8g7"), "a7b8\na7b8n\nsalir\n");
+    String output = play(board, Color.WHITE, moves("h8g7"), "a7b8\na7b8n\nquit\n");
 
-    assertTrue(output.contains("Jugada ilegal"));
+    assertTrue(output.contains("Illegal move"));
     assertTrue(board.getPieceAt(Cell.B8).orElseThrow() instanceof Knight);
+  }
+
+  @Test
+  void shouldContinueAcceptingSpanishCommandAliases() throws IOException {
+    String output = play(Board.standard(), Color.WHITE, moves(), "ayuda\nsalir\n");
+
+    assertTrue(output.contains("Castling:"));
+    assertTrue(output.contains("Game ended."));
   }
 
   @Test

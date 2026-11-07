@@ -1,51 +1,53 @@
 # Viktor
 
-Viktor es un motor de ajedrez en Java. Incluye una interfaz de consola para jugar una partida
-contra el motor.
+Viktor is a chess engine written in Java. It includes a console interface for playing against
+the engine.
 
-## Requisitos
+## Requirements
 
-- JDK 21 o superior.
-- Maven para compilar el proyecto.
+- JDK 21 or later.
+- Maven to build the project.
 
-## Iniciar una partida
+## Starting a game
 
-Desde la raíz del proyecto, en Windows:
+From the project root on Windows:
 
 ```powershell
 mvn compile
 java -cp target\classes com.desierto.Viktor
 ```
 
-También puedes ejecutar `main` de `com.desierto.Viktor` desde IntelliJ IDEA; configura los
-argumentos de programa en la configuración de ejecución si quieres cambiar las opciones.
+You can also run the `main` method of `com.desierto.Viktor` from IntelliJ IDEA. To change the
+options, set the program arguments in the run configuration.
 
-Por defecto juegas con blancas y Viktor busca a profundidad 3. Para jugar con negras o cambiar
-la profundidad:
+By default, you play White and Viktor searches to depth 3. To play Black or change the depth:
 
 ```powershell
-java -cp target\classes com.desierto.Viktor --negras --profundidad 4
+java -cp target\classes com.desierto.Viktor --black --depth 4
 ```
 
-`--negras` y `--profundidad N` son independientes. La profundidad debe ser un entero positivo:
-una profundidad mayor puede tardar mucho más, ya que esta interfaz no establece un límite de
-tiempo por jugada. Usa `--ayuda` para consultar las opciones de inicio.
+`--black` and `--depth N` are independent. The depth must be a positive integer. Higher depths
+can take much longer because this interface does not set a time limit per move. Use `--help` to
+see the startup options.
 
-## Durante la partida
+## Playing
 
-Escribe la casilla de origen y la de destino, sin espacios; se admiten mayúsculas y minúsculas.
+Enter the starting and destination squares without spaces. Input is case-insensitive.
 
-- `e2e4`: mover de e2 a e4.
-- `e1g1` o `e1c1`: enroque blanco corto o largo; para negras, `e8g8` o `e8c8`.
-- `e7e8q`: promoción; añade obligatoriamente `q` (dama), `r` (torre), `b` (alfil) o `n`
-  (caballo), también cuando la promoción incluye captura.
-- `ayuda`: mostrar las instrucciones de entrada.
-- `salir`: terminar la partida; el fin de entrada también la termina.
+- `e2e4`: move from e2 to e4.
+- `e1g1` or `e1c1`: castle kingside or queenside as White; use `e8g8` or `e8c8` as Black.
+- `e7e8q`: promote a pawn. Append `q` (queen), `r` (rook), `b` (bishop) or `n` (knight),
+  including when the promotion captures a piece.
+- `help`: show the input instructions.
+- `quit`: end the game; end of input also ends the game.
 
-En el tablero, las piezas blancas aparecen en mayúsculas y las negras en minúsculas.
-Las letras son `K` rey, `Q` dama, `R` torre, `B` alfil, `N` caballo y `P` peón; `.` indica
-una casilla vacía. Viktor muestra su jugada con la misma notación.
+White pieces appear in uppercase and Black pieces in lowercase. The letters are `K` king,
+`Q` queen, `R` rook, `B` bishop, `N` knight and `P` pawn; `.` denotes an empty square.
+Viktor displays its moves in the same notation.
 
-La partida termina automáticamente por jaque mate o ahogado. Aún no se detectan otras tablas,
-como las de repetición, material insuficiente o las basadas en contadores de jugadas. La interfaz
-es interactiva y no implementa el protocolo UCI.
+The game ends automatically on checkmate or stalemate. Other draws, such as repetition,
+insufficient material or move-count draws, are not yet detected. The interface is interactive
+and does not implement the UCI protocol.
+
+For compatibility, the previous Spanish options (`--negras`, `--profundidad`, `--ayuda`) and
+commands (`ayuda`, `salir`) remain available.

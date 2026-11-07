@@ -17,29 +17,29 @@ public final class Viktor {
     int depth = 3;
     for (int i = 0; i < args.length; i++) {
       switch (args[i]) {
-        case "--ayuda" -> {
-          System.out.println("Uso: java -cp target\\classes com.desierto.Viktor [--negras] [--profundidad N]");
+        case "--help", "--ayuda" -> {
+          System.out.println("Usage: java -cp target\\classes com.desierto.Viktor [--black] [--depth N]");
           return;
         }
-        case "--negras" -> humanColor = Color.BLACK;
-        case "--profundidad" -> {
+        case "--black", "--negras" -> humanColor = Color.BLACK;
+        case "--depth", "--profundidad" -> {
           if (++i == args.length) {
-            fail("Falta el valor de --profundidad.");
+            fail("Missing value for --depth.");
             return;
           }
           try {
             depth = Integer.parseInt(args[i]);
           } catch (NumberFormatException ex) {
-            fail("La profundidad debe ser un numero entero positivo.");
+            fail("Depth must be a positive integer.");
             return;
           }
           if (depth < 1) {
-            fail("La profundidad debe ser un numero entero positivo.");
+            fail("Depth must be a positive integer.");
             return;
           }
         }
         default -> {
-          fail("Opcion desconocida: " + args[i]);
+          fail("Unknown option: " + args[i]);
           return;
         }
       }
@@ -49,7 +49,7 @@ public final class Viktor {
   }
 
   private static void fail(String message) {
-    System.err.println(message + " Usa --ayuda para consultar las opciones.");
+    System.err.println(message + " Use --help to see the available options.");
     System.exit(2);
   }
 }
