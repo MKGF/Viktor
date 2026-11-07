@@ -1,6 +1,7 @@
 package com.desierto.uci;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.desierto.domain.Board;
@@ -26,6 +27,13 @@ class UciProtocolTest {
       assertTrue(output.contains("uciok"));
       assertTrue(output.contains("readyok"));
       assertTrue(output.contains("info depth 1 score "));
+      assertTrue(output.contains("info string decision reason=search"));
+      assertTrue(output.contains("side=black fullmove=1 halfmove=0 in_check=false legal_moves=20"));
+      assertTrue(output.contains("depth_limit=1 time_limit_ms=unlimited"));
+      assertTrue(output.matches("(?s).*elapsed_ms=\\d+ depth=1 nodes=\\d+ score=(cp|mate):-?\\d+.*"));
+      String diagnostic = output.lines().filter(line -> line.startsWith("info string decision "))
+          .findFirst().orElseThrow().substring("info string ".length());
+      assertEquals(diagnostic, h.diagnostics().trim());
       Board board = UciPosition.parse("position startpos moves e2e4".split(" "));
       assertLegalBestMove(output, board);
       h.send("ucinewgame\nposition startpos\nisready\n");
@@ -52,6 +60,8 @@ class UciProtocolTest {
       h.send("position startpos\ngo movetime 0\n");
       String output = h.await("bestmove ");
       assertTrue(output.contains("Search stopped before completing an iteration"));
+      assertTrue(output.contains("reason=no_completed_iteration"));
+      assertTrue(output.contains("depth=unavailable nodes=unavailable score=unavailable"));
       assertLegalBestMove(output, Board.standard());
     }
   }
@@ -63,9 +73,12 @@ class UciProtocolTest {
       h.send(repeated + "\ngo depth 1\n");
       String output = h.await("bestmove ");
       assertTrue(output.contains("Draw is handled by the GUI"));
+      assertTrue(output.contains("reason=automatic_draw"));
       assertLegalBestMove(output, UciPosition.parse(repeated.split(" ")));
       h.send("position fen 7k/6Q1/5K2/8/8/8/8/8 b - - 0 1\ngo depth 1\n");
-      assertTrue(h.awaitCount("bestmove ", 2).contains("bestmove 0000"));
+      String mate = h.awaitCount("bestmove ", 2);
+      assertTrue(mate.contains("reason=terminal move=0000"));
+      assertTrue(mate.contains("score=mate:0"));
     }
   }
 
@@ -76,6 +89,7 @@ class UciProtocolTest {
       h.send(position + "\ngo depth 1\n");
       String output = h.await("bestmove ");
       assertTrue(output.contains("Draw claim is handled by the GUI"));
+      assertTrue(output.contains("reason=draw_claim"));
       assertLegalBestMove(output, UciPosition.parse(position.split(" ")));
     }
   }
@@ -105,15 +119,17 @@ class UciProtocolTest {
   private static final class Harness implements AutoCloseable {
     private final PipedWriter commands = new PipedWriter();
     private final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    private final ByteArrayOutputStream errorBytes = new ByteArrayOutputStream();
     private final Thread protocol;
     private volatile Throwable failure;
 
     Harness() throws IOException {
       BufferedReader input = new BufferedReader(new PipedReader(commands));
       PrintStream output = new PrintStream(bytes, true, StandardCharsets.UTF_8);
+      PrintStream errors = new PrintStream(errorBytes, true, StandardCharsets.UTF_8);
       protocol = new Thread(() -> {
         try {
-          new UciProtocol(output, System.err).run(input);
+          new UciProtocol(output, errors).run(input);
         } catch (Throwable ex) {
           failure = ex;
         }
@@ -124,6 +140,10 @@ class UciProtocolTest {
     void send(String value) throws IOException {
       commands.write(value);
       commands.flush();
+    }
+
+    String diagnostics() {
+      return errorBytes.toString(StandardCharsets.UTF_8);
     }
 
     String await(String text) throws Exception {

@@ -6,9 +6,9 @@ import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
 import com.desierto.search.IterativeDeepeningEngine;
 import com.desierto.search.SearchLimits;
+import com.desierto.search.SearchDiagnostics;
 import com.desierto.search.SearchResult;
 import com.desierto.search.SearchTimeoutException;
-import com.desierto.search.evaluation.StandardPositionEvaluator;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -116,24 +116,36 @@ final class UciProtocol {
           : Math.min(options.timeMillis(), Long.MAX_VALUE / 1_000_000) * 1_000_000;
       Optional<Move> best;
       Optional<Move> fallback = Optional.empty();
+      SearchResult result = null;
+      int legalCount = 0;
+      boolean inCheck = false;
+      String reason = "no_completed_iteration";
       try {
-        List<Move> legalMoves = new MoveGenerator().generateLegalMoves(position, position.getSideToMove());
+        MoveGenerator generator = new MoveGenerator();
+        List<Move> legalMoves = generator.generateLegalMoves(position, position.getSideToMove());
+        legalCount = legalMoves.size();
+        inCheck = generator.isKingInCheck(position, position.getSideToMove());
         fallback = legalMoves.stream().findFirst();
         best = fallback;
-        SearchResult result = new IterativeDeepeningEngine().findBestMove(position,
+        result = new IterativeDeepeningEngine().findBestMove(position,
             new SearchLimits(options.depth()),
             () -> cancelled.get() || (timeNanos >= 0 && System.nanoTime() - start >= timeNanos),
             iteration -> reportIteration(iteration, start));
         if (result.bestMove().isPresent()) {
+          reason = "search";
           best = result.bestMove();
         } else if (result.drawClaim().isPresent()) {
+          reason = "draw_claim";
           Optional<Move> intended = result.drawClaim().orElseThrow().intendedMove();
           best = intended.isPresent() ? intended : fallback;
           if (!suppressOutput.get()) {
             output.println("info string Draw claim is handled by the GUI; returning a legal move.");
           }
-        } else if (fallback.isPresent() && !suppressOutput.get()) {
-          output.println("info string Draw is handled by the GUI; returning a legal move.");
+        } else {
+          reason = fallback.isPresent() ? "automatic_draw" : "terminal";
+          if (fallback.isPresent() && !suppressOutput.get()) {
+            output.println("info string Draw is handled by the GUI; returning a legal move.");
+          }
         }
       } catch (SearchTimeoutException ex) {
         if (!suppressOutput.get()) {
@@ -161,6 +173,20 @@ final class UciProtocol {
         }
       }
       if (!suppressOutput.get()) {
+        String decision = "decision reason=" + reason
+            + " move=" + best.map(MoveNotation::format).orElse("0000")
+            + " side=" + position.getSideToMove().name().toLowerCase(java.util.Locale.ROOT)
+            + " fullmove=" + position.getFullmoveNumber()
+            + " halfmove=" + position.getHalfmoveClock()
+            + " in_check=" + inCheck + " legal_moves=" + legalCount
+            + " depth_limit=" + options.depth()
+            + " time_limit_ms=" + (options.timeMillis() < 0 ? "unlimited" : options.timeMillis())
+            + " infinite=" + options.infinite() + " stop_requested=" + cancelled.get()
+            + " elapsed_ms=" + (System.nanoTime() - start) / 1_000_000
+            + (result == null ? " depth=unavailable nodes=unavailable score=unavailable"
+                : " " + SearchDiagnostics.result(result));
+        errors.println(decision);
+        output.println("info string " + decision);
         output.println("bestmove " + best.map(MoveNotation::format).orElse("0000"));
       }
     }
@@ -169,15 +195,7 @@ final class UciProtocol {
       if (suppressOutput.get()) {
         return;
       }
-      int score = result.score();
-      String scoreText;
-      if (Math.abs(score) >= StandardPositionEvaluator.CHECKMATE_SCORE - 128) {
-        int plies = StandardPositionEvaluator.CHECKMATE_SCORE - Math.abs(score);
-        int moves = (plies + 1) / 2;
-        scoreText = "mate " + (score < 0 ? -moves : moves);
-      } else {
-        scoreText = "cp " + score;
-      }
+      String scoreText = SearchDiagnostics.score(result.score());
       long elapsed = (System.nanoTime() - start) / 1_000_000;
       String pv = result.bestMove().map(move -> " pv " + MoveNotation.format(move)).orElse("");
       output.println("info depth " + result.depth() + " score " + scoreText

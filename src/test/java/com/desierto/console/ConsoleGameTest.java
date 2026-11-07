@@ -70,6 +70,9 @@ class ConsoleGameTest {
     assertTrue(output.contains("Illegal move"));
     assertTrue(output.contains("e7e8q"));
     assertTrue(output.contains("Viktor plays: e7e5"));
+    assertTrue(output.contains("Search decision: reason=search move=e7e5 side=black"));
+    assertTrue(output.contains("requested_depth=1 time_limit_ms=1000"));
+    assertTrue(output.contains("depth=1 nodes=1 score=cp:0"));
     assertTrue(output.contains("Game ended."));
     assertTrue(board.getPieceAt(Cell.E4).orElseThrow() instanceof Pawn);
     assertEquals(Color.WHITE, board.getPieceAt(Cell.E4).orElseThrow().getColor());
@@ -172,6 +175,7 @@ class ConsoleGameTest {
           Optional.of(new DrawClaim(Optional.of(intended))));
     }, "");
     assertTrue(output.contains("Viktor claims a fifty-move draw with intended move b1b2."));
+    assertTrue(output.contains("Search decision: reason=draw_claim move=b1b2"));
     assertEquals(initial, board.toString());
     assertEquals(99, board.getHalfmoveClock());
   }
@@ -280,6 +284,8 @@ class ConsoleGameTest {
     }, "");
 
     assertTrue(output.contains("Search timed out before completing the first depth"));
+    assertTrue(output.contains("reason=no_completed_iteration move=none"));
+    assertTrue(output.contains("depth=unavailable nodes=unavailable score=unavailable"));
     assertTrue(output.contains("Game ended."));
     assertFalse(output.contains("Viktor plays:"));
     assertEquals(initialPosition, board.toString());

@@ -104,3 +104,34 @@ treats threefold repetition as automatic, which differs from official claim rule
 history starts at the supplied position: a standalone FEN cannot describe moves played before it,
 so those earlier occurrences cannot be detected unless the GUI supplies them as moves from an
 earlier position.
+
+## Search diagnostics
+
+After each engine decision, the console prints a `Search decision` line. The UCI engine sends
+the same kind of summary to standard error and as an `info string` on standard output; whether
+the GUI displays or retains it depends on the GUI. Standard UCI `info` lines still report each
+completed search depth, and `bestmove` remains the protocol's final move response.
+
+The summary identifies the chosen move, side to move, move counters, whether the king is in
+check, the number of legal moves, search limits, elapsed milliseconds, completed depth, nodes,
+and score. The score is from the side-to-move perspective: `cp:100` is one pawn in that side's
+favor, while `mate:N` reports mate in moves. It is an engine evaluation, not a probability.
+Depth counts halfmoves and tactical quiescence may look further; the node count can include
+work from an interrupted iteration. UCI elapsed time runs from the search request until the
+decision is returned, including any wait for `stop` during infinite analysis.
+
+`reason=search` means the move came from a completed search; `draw_claim` and `automatic_draw`
+indicate a draw decision for which the GUI must adjudicate. `terminal` means no legal move is
+available. If the search stops before completing an iteration, `reason=no_completed_iteration`
+is reported, with depth, nodes and score marked `unavailable`; UCI returns a legal fallback
+when one exists. The summary describes the search result and context, not a move-by-move
+explanation of the engine's reasoning.
+
+To keep an existing Windows build while generating an updated executable in a separate folder:
+
+```powershell
+.\build-uci.ps1 -Destination target\uci-diagnostics
+```
+
+In that case select `target\uci-diagnostics\ViktorUCI\ViktorUCI.exe` in the GUI and keep its
+entire `ViktorUCI` folder together.
