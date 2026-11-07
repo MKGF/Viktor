@@ -3,6 +3,14 @@
 Viktor is a chess engine written in Java. It includes a console interface for playing against
 the engine.
 
+## Branch names
+
+New branches on GitHub must use `type/version/short-description`, for example
+`feat/1.0/add-castling` or `fix/1.0/search-timeout`. Use a change type such as `feat`,
+`fix` or `chore`, the target version, and a short description. The existing default branch
+is exempt. GitHub enforces the three-part structure when a branch is created, but does not
+validate the meaning of each part.
+
 ## Requirements
 
 - JDK 21 or later.
@@ -76,16 +84,21 @@ that includes `javac`, `jar` and `jpackage`:
 .\build-uci.ps1
 ```
 
-The executable is `target\ViktorUCI\ViktorUCI.exe`. Keep the entire `ViktorUCI` directory
-together: it includes the Java runtime needed to launch the engine. The script does not
-overwrite an existing `target\ViktorUCI` directory; move or remove an old build before
-rebuilding. The console mode described above remains available separately.
+The executable is `target\ViktorUCI-1.1.0\ViktorUCI-1.1.0.exe` for version 1.1.0. The
+script takes the version from `pom.xml`, so different versions can be kept side by side.
+Keep the entire versioned directory together: it includes the Java runtime needed to launch
+the engine. The script does not overwrite an existing directory for the same version; move
+or remove it before rebuilding. The engine also reports its version in its UCI name and
+console greeting. Maven embeds the version during resource filtering. When running directly
+from an IDE that does not filter resources, use the project root as the working directory so
+the engine can read the version from `pom.xml`. The console mode described above remains
+available separately.
 
 For example, [Lucas Chess](https://lucaschess.pythonanywhere.com/downloads) supports external
 UCI engines:
 
 1. Install or run Lucas Chess for Windows.
-2. Open **Engines → External engines → New** and select `ViktorUCI.exe`.
+2. Open **Engines → External engines → New** and select the versioned `ViktorUCI-1.1.0.exe`.
 3. Accept the engine details, then start a game against an engine and select Viktor from
    **External engines**. Choose your color and a fixed thinking time or depth.
 
@@ -105,27 +118,59 @@ history starts at the supplied position: a standalone FEN cannot describe moves 
 so those earlier occurrences cannot be detected unless the GUI supplies them as moves from an
 earlier position.
 
+## Position evaluation
+
+Viktor evaluates material and piece-square placement for both colors. It also favors developing
+knights and bishops and uses the king's position and nearby friendly pawns as a simple safety
+heuristic. These opening and middlegame terms gradually give way to a centralized king in the
+endgame as non-pawn material disappears. This is a heuristic, not a complete assessment of pawn
+structure, mobility or king attacks. Checkmate and recognized draws still take precedence over
+the positional score.
+
 ## Search diagnostics
 
-After each engine decision, the console prints a `Search decision` line. The UCI engine sends
-the same kind of summary to standard error and as an `info string` on standard output; whether
-the GUI displays or retains it depends on the GUI. Standard UCI `info` lines still report each
-completed search depth, and `bestmove` remains the protocol's final move response.
+After each search, the console prints a structured decision, for example:
 
-The summary identifies the chosen move, side to move, move counters, whether the king is in
-check, the number of legal moves, search limits, elapsed milliseconds, completed depth, nodes,
-and score. The score is from the side-to-move perspective: `cp:100` is one pawn in that side's
-favor, while `mate:N` reports mate in moves. It is an engine evaluation, not a probability.
-Depth counts halfmoves and tactical quiescence may look further; the node count can include
-work from an interrupted iteration. UCI elapsed time runs from the search request until the
-decision is returned, including any wait for `stop` during infinite analysis.
+```text
+decision:
+  source=search
+  selected_move=b1c3
+  score=cp:44
+  score_perspective=white
+  pv=b1c3 b8c6
+  alternatives:
+    - move=b1c3 score=cp:44 bound=exact
+    - move=g1f3 score=cp:44 bound=upper
+  side=white fullmove=1 halfmove=0 in_check=false legal_moves=20 requested_depth=2 time_limit_ms=1000 elapsed_ms=20 depth=2 nodes=100
+```
 
-`reason=search` means the move came from a completed search; `draw_claim` and `automatic_draw`
+The score and alternatives use the searching side's perspective; `cp:100` is one pawn in
+that side's favor and `mate:N` reports mate in moves. Up to three root moves are listed by
+their reported scores, including the selected move. `bound=upper` means pruning established
+only an upper bound: the true score may be lower, so these moves are not necessarily the
+best remaining alternatives. The principal variation (`pv`) contains moves found by the
+search and can be shorter than the completed depth when the search reaches a terminal
+position, a draw claim, or a cached transposition. It does not include quiescence moves.
+
+The console also logs a `position` block initially and after each move. It shows the static
+evaluation, material and positional terms from White's perspective, regardless of whose turn
+it is. Checkmate and automatic draws override the combined evaluation, so in those cases
+the heuristic terms need not add up to it. Static evaluation is distinct from the search
+score and is not a probability.
+
+The UCI engine writes the same structured blocks to standard error and emits each line as
+an `info string` on standard output; whether the GUI displays or retains them depends on the
+GUI. It logs each received position and, after a search move, the projected position if that
+move is played. Standard UCI `info` lines report the score and principal variation for each
+completed depth; `bestmove` remains the final move response.
+
+`source=search` means the move came from a completed search; `draw_claim` and `automatic_draw`
 indicate a draw decision for which the GUI must adjudicate. `terminal` means no legal move is
-available. If the search stops before completing an iteration, `reason=no_completed_iteration`
-is reported, with depth, nodes and score marked `unavailable`; UCI returns a legal fallback
-when one exists. The summary describes the search result and context, not a move-by-move
-explanation of the engine's reasoning.
+available. If no iteration completes, `source=no_completed_iteration` reports unavailable
+score, depth and nodes. In UCI, `selected_move=none` distinguishes these cases from `uci_move`,
+the legal fallback sent to the GUI when one exists. Depth counts halfmoves, quiescence can look
+further, and nodes can include work from an interrupted iteration. UCI elapsed time includes
+any wait for `stop` during infinite analysis.
 
 To keep an existing Windows build while generating an updated executable in a separate folder:
 
@@ -133,5 +178,5 @@ To keep an existing Windows build while generating an updated executable in a se
 .\build-uci.ps1 -Destination target\uci-diagnostics
 ```
 
-In that case select `target\uci-diagnostics\ViktorUCI\ViktorUCI.exe` in the GUI and keep its
-entire `ViktorUCI` folder together.
+In that case select `target\uci-diagnostics\ViktorUCI-1.1.0\ViktorUCI-1.1.0.exe` in the GUI
+and keep its entire versioned folder together.

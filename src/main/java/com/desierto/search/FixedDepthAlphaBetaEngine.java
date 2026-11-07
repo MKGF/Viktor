@@ -6,9 +6,12 @@ import com.desierto.domain.DrawDetector;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
+import com.desierto.domain.MoveNotation;
 import com.desierto.domain.SearchPosition;
 import com.desierto.search.evaluation.PositionEvaluator;
 import com.desierto.search.evaluation.StandardPositionEvaluator;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -104,32 +107,46 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
     int bestScore = claim.isPresent() ? 0 : Integer.MIN_VALUE;
     int alpha = bestScore;
     int beta = Integer.MAX_VALUE;
+    List<SearchTrace.Alternative> alternatives = new ArrayList<>();
+    List<String> bestLine = List.of();
     List<LegalMove> orderedMoves = moveOrderingStrategy.order(workingBoard, legalMoves, preferredMove);
     context.checkTime();
     for (LegalMove legalMove : orderedMoves) {
       Move move = legalMove.move();
       int score;
+      int initialAlpha = alpha;
       try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
         score = alphaBeta(position, limits.maxDepth() - 1, perspective, 1, alpha, beta, context);
       }
+      String notation = MoveNotation.format(move);
+      alternatives.add(new SearchTrace.Alternative(notation, score,
+          score <= initialAlpha ? SearchTrace.Bound.UPPER : SearchTrace.Bound.EXACT));
       if (score > bestScore) {
         bestScore = score;
         bestMove = move;
+        bestLine = new ArrayList<>();
+        bestLine.add(notation);
+        bestLine.addAll(context.pvLine(1));
       }
       alpha = Math.max(alpha, bestScore);
     }
     context.checkTime();
+    alternatives.sort(Comparator.comparingInt(SearchTrace.Alternative::score).reversed());
+    List<SearchTrace.Alternative> topAlternatives = List.copyOf(
+        alternatives.subList(0, Math.min(3, alternatives.size())));
     if (bestMove == null && claim.isPresent()) {
       Optional<Move> intended = claim.orElseThrow().intendedMove().map(position::originalMove);
       return new SearchResult(Optional.empty(), perspective, 0, limits.maxDepth(), context.nodes(),
-          Optional.of(new DrawClaim(intended)));
+          Optional.of(new DrawClaim(intended)), new SearchTrace(List.of(), topAlternatives));
     }
     return new SearchResult(Optional.of(position.originalMove(bestMove)), perspective, bestScore, limits.maxDepth(),
-        context.nodes());
+        context.nodes(), Optional.empty(), new SearchTrace(bestLine, topAlternatives));
   }
 
   private int alphaBeta(SearchPosition position, int remainingDepth, Color perspective, int plyFromRoot, int alpha,
       int beta, SearchContext context) {
+    List<String> principalVariation = context.pvLine(plyFromRoot);
+    principalVariation.clear();
     Board board = position.board();
     if (remainingDepth == 0 && quiescenceSearch != null) {
       return quiescenceSearch.search(position, perspective, plyFromRoot, alpha, beta, context);
@@ -185,6 +202,11 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
           score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
               context);
         }
+        if (score > bestScore) {
+          principalVariation.clear();
+          principalVariation.add(MoveNotation.format(legalMove.move()));
+          principalVariation.addAll(context.pvLine(plyFromRoot + 1));
+        }
         bestScore = Math.max(bestScore, score);
         alpha = Math.max(alpha, bestScore);
         if (alpha >= beta) {
@@ -204,6 +226,11 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
         score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
             context);
+      }
+      if (score < bestScore) {
+        principalVariation.clear();
+        principalVariation.add(MoveNotation.format(legalMove.move()));
+        principalVariation.addAll(context.pvLine(plyFromRoot + 1));
       }
       bestScore = Math.min(bestScore, score);
       beta = Math.min(beta, bestScore);
@@ -227,6 +254,7 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
 
     private long nodes;
     private final BooleanSupplier timeExpired;
+    private final List<List<String>> pvLines = new ArrayList<>();
     private TranspositionTable table;
 
     SearchContext() {
@@ -256,6 +284,13 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
 
     long nodes() {
       return nodes;
+    }
+
+    List<String> pvLine(int ply) {
+      while (pvLines.size() <= ply) {
+        pvLines.add(new ArrayList<>());
+      }
+      return pvLines.get(ply);
     }
   }
 

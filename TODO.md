@@ -1,7 +1,7 @@
 # TODO - Motor de ajedrez
 
-Hoja de ruta del proyecto. El motor ya dispone de búsqueda y de una integración UCI básica;
-la siguiente mejora prevista es la evaluación posicional.
+Hoja de ruta del proyecto. El motor ya dispone de búsqueda, evaluación posicional básica y una
+integración UCI.
 
 ## 1. Base del dominio
 
@@ -79,12 +79,13 @@ la siguiente mejora prevista es la evaluación posicional.
   legales. La extensión se limita a ocho medias jugadas y entonces se evalúa incluso en jaque.
   Está activada por defecto en alpha-beta y búsqueda iterativa; puede desactivarse con el
   constructor que recibe `false`.
-- [ ] Añadir evaluación posicional gradual, empezando por tablas pieza-casilla, desarrollo
-  y seguridad del rey. La evaluación actual solo considera material, mates y tablas, por lo que
-  puede puntuar igual jugadas de apertura con distinta calidad posicional.
-- [ ] Añadir pruebas de evaluación y selección de jugadas en aperturas y otras posiciones,
-  manteniendo las pruebas tácticas existentes. Comprobar ambos colores y evitar depender de
-  una única jugada cuando haya varias opciones razonables.
+- [x] Añadir evaluación posicional gradual con tablas pieza-casilla, desarrollo de piezas
+  menores y seguridad del rey mediante su ubicación y escudo de peones. La fase depende del
+  material no peón y ajusta gradualmente la importancia del desarrollo, el refugio y la
+  centralización del rey. No evalúa explícitamente movilidad, estructura de peones ni ataques
+  al rey.
+- [x] Añadir pruebas de evaluación y selección de jugadas en aperturas y finales para ambos
+  colores, conservando las pruebas tácticas y aceptando varias jugadas razonables.
 - [ ] Evaluar más adelante la incorporación opcional de un libro de aperturas como complemento
   a la evaluación, no como sustituto de esta.
 
@@ -162,7 +163,7 @@ la siguiente mejora prevista es la evaluación posicional.
 
 ## Próximos pasos
 
-1. Diseñar e implementar la evaluación posicional con pruebas de calidad de jugada y regresión.
+1. Afinar la evaluación posicional con posiciones adicionales y mediciones de calidad.
 2. Evaluar posteriormente un libro de aperturas opcional.
 
 Las mejoras de reglas, rendimiento y UCI pendientes anteriores siguen siendo opcionales y se

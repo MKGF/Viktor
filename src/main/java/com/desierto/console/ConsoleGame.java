@@ -1,5 +1,6 @@
 package com.desierto.console;
 
+import com.desierto.EngineInfo;
 import com.desierto.domain.Board;
 import com.desierto.domain.Color;
 import com.desierto.domain.DrawDetector;
@@ -57,8 +58,9 @@ public final class ConsoleGame {
   public void run(BufferedReader input, PrintStream output) throws IOException {
     Objects.requireNonNull(input, "input must not be null");
     Objects.requireNonNull(output, "output must not be null");
-    output.println("Viktor: you play " + colorName(humanColor) + ". Type help to see the commands.");
+    output.println(EngineInfo.name() + ": you play " + colorName(humanColor) + ". Type help to see the commands.");
     output.println(board);
+    output.println(SearchDiagnostics.position(board, "initial"));
     while (true) {
       Color side = board.getSideToMove();
       List<Move> legalMoves = generator.generateLegalMoves(board, side);
@@ -142,13 +144,12 @@ public final class ConsoleGame {
         try {
           result = engine.findBestMove(board, limits, timeLimit);
         } catch (SearchTimeoutException ex) {
-          output.println("Search decision: reason=no_completed_iteration move=none side="
+          output.println(SearchDiagnostics.decision("no_completed_iteration", "none", null, "side="
               + colorName(side).toLowerCase(Locale.ROOT) + " fullmove=" + board.getFullmoveNumber()
               + " halfmove=" + board.getHalfmoveClock() + " in_check=" + inCheck
               + " legal_moves=" + legalMoves.size() + " requested_depth=" + limits.maxDepth()
               + " time_limit_ms=" + timeLimit.toMillis() + " elapsed_ms="
-              + (System.nanoTime() - start) / 1_000_000
-              + " depth=unavailable nodes=unavailable score=unavailable");
+              + (System.nanoTime() - start) / 1_000_000));
           output.println("Search timed out before completing the first depth. Increase --time and try again.");
           output.println("Game ended.");
           return;
@@ -168,29 +169,30 @@ public final class ConsoleGame {
             output.println("Viktor claims a draw under the fifty-move rule.");
           }
           reportDecision(output, side, legalMoves.size(), inCheck, "draw_claim",
-              intendedMove.map(MoveNotation::format).orElse("none"), result, start);
+              "none", result, start, " announced_move=" + intendedMove.map(MoveNotation::format).orElse("none"));
           return;
         }
         Move move = result.bestMove()
             .orElseThrow(() -> new IllegalStateException("The engine returned no move in a non-terminal position"));
         reportDecision(output, side, legalMoves.size(), inCheck, "search",
-            MoveNotation.format(move), result, start);
+            MoveNotation.format(move), result, start, "");
         board.makeMove(move);
         output.println("Viktor plays: " + MoveNotation.format(move) + " (depth " + result.depth() + ")");
       }
       output.println(board);
+      output.println(SearchDiagnostics.position(board, "after_move"));
     }
   }
 
   private void reportDecision(PrintStream output, Color side, int legalMoves, boolean inCheck,
-      String reason, String move, SearchResult result, long start) {
-    output.println("Search decision: reason=" + reason + " move=" + move
-        + " side=" + colorName(side).toLowerCase(Locale.ROOT)
+      String reason, String move, SearchResult result, long start, String extra) {
+    output.println(SearchDiagnostics.decision(reason, move, result,
+        "side=" + colorName(side).toLowerCase(Locale.ROOT)
         + " fullmove=" + board.getFullmoveNumber() + " halfmove=" + board.getHalfmoveClock()
         + " in_check=" + inCheck + " legal_moves=" + legalMoves
         + " requested_depth=" + limits.maxDepth() + " time_limit_ms=" + timeLimit.toMillis()
         + " elapsed_ms=" + (System.nanoTime() - start) / 1_000_000
-        + " " + SearchDiagnostics.result(result));
+        + extra));
   }
 
   private static String colorName(Color color) {

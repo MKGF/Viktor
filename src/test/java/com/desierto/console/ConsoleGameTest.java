@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.desierto.EngineInfo;
 import com.desierto.domain.Board;
 import com.desierto.domain.BoardFactory;
 import com.desierto.domain.Cell;
@@ -66,13 +67,17 @@ class ConsoleGameTest {
     String output = play(board, Color.WHITE, moves("e7e5"),
         "help\nz9z9\ne2e5\nE2E4\nquit\n");
 
+    assertTrue(output.startsWith(EngineInfo.name() + ": you play White."));
     assertTrue(output.contains("Invalid format"));
     assertTrue(output.contains("Illegal move"));
     assertTrue(output.contains("e7e8q"));
     assertTrue(output.contains("Viktor plays: e7e5"));
-    assertTrue(output.contains("Search decision: reason=search move=e7e5 side=black"));
+    assertTrue(output.contains("decision:\n  source=search\n  selected_move=e7e5"));
+    assertTrue(output.contains("position:\n  stage=initial\n  perspective=white"));
+    assertEquals(2, output.lines().filter(line -> line.equals("  stage=after_move")).count());
     assertTrue(output.contains("requested_depth=1 time_limit_ms=1000"));
-    assertTrue(output.contains("depth=1 nodes=1 score=cp:0"));
+    assertTrue(output.contains("  score=cp:0"));
+    assertTrue(output.contains("depth=1 nodes=1"));
     assertTrue(output.contains("Game ended."));
     assertTrue(board.getPieceAt(Cell.E4).orElseThrow() instanceof Pawn);
     assertEquals(Color.WHITE, board.getPieceAt(Cell.E4).orElseThrow().getColor());
@@ -175,7 +180,8 @@ class ConsoleGameTest {
           Optional.of(new DrawClaim(Optional.of(intended))));
     }, "");
     assertTrue(output.contains("Viktor claims a fifty-move draw with intended move b1b2."));
-    assertTrue(output.contains("Search decision: reason=draw_claim move=b1b2"));
+    assertTrue(output.contains("decision:\n  source=draw_claim\n  selected_move=none"));
+    assertTrue(output.contains("announced_move=b1b2"));
     assertEquals(initial, board.toString());
     assertEquals(99, board.getHalfmoveClock());
   }
@@ -284,8 +290,8 @@ class ConsoleGameTest {
     }, "");
 
     assertTrue(output.contains("Search timed out before completing the first depth"));
-    assertTrue(output.contains("reason=no_completed_iteration move=none"));
-    assertTrue(output.contains("depth=unavailable nodes=unavailable score=unavailable"));
+    assertTrue(output.contains("source=no_completed_iteration\n  selected_move=none\n  score=unavailable"));
+    assertTrue(output.contains("depth=unavailable nodes=unavailable"));
     assertTrue(output.contains("Game ended."));
     assertFalse(output.contains("Viktor plays:"));
     assertEquals(initialPosition, board.toString());
@@ -307,7 +313,7 @@ class ConsoleGameTest {
     PrintStream output = new PrintStream(bytes, true, StandardCharsets.UTF_8);
     new ConsoleGame(board, humanColor, engine, new SearchLimits(1), Duration.ofSeconds(1))
         .run(new BufferedReader(new StringReader(commands)), output);
-    return bytes.toString(StandardCharsets.UTF_8);
+    return bytes.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
   }
 
   private void applyNotation(Board board, String notation) {

@@ -84,7 +84,7 @@ public final class IterativeDeepeningEngine implements SearchEngine {
           throw new SearchTimeoutException();
         }
         return new SearchResult(completed.bestMove(), completed.perspective(), completed.score(),
-            completed.depth(), context.nodes(), completed.drawClaim());
+            completed.depth(), context.nodes(), completed.drawClaim(), completed.trace());
       }
       onIteration.accept(completed);
       if ((completed.bestMove().isEmpty() && completed.drawClaim().isEmpty())

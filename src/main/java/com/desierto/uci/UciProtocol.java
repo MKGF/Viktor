@@ -1,5 +1,6 @@
 package com.desierto.uci;
 
+import com.desierto.EngineInfo;
 import com.desierto.domain.Board;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
@@ -41,7 +42,7 @@ final class UciProtocol {
         try {
           switch (tokens[0]) {
             case "uci" -> {
-              output.println("id name Viktor");
+              output.println("id name " + EngineInfo.name());
               output.println("id author MKGF");
               output.println("uciok");
             }
@@ -52,7 +53,10 @@ final class UciProtocol {
             }
             case "position" -> {
               stop(false);
-              board = UciPosition.parse(tokens);
+              Board next = UciPosition.parse(tokens);
+              String diagnostic = SearchDiagnostics.position(next, "received");
+              board = next;
+              logDiagnostic(diagnostic);
             }
             case "go" -> {
               stop(false);
@@ -77,6 +81,11 @@ final class UciProtocol {
     } finally {
       stop(true);
     }
+  }
+
+  private synchronized void logDiagnostic(String diagnostic) {
+    errors.println(diagnostic);
+    diagnostic.lines().forEach(line -> output.println("info string " + line));
   }
 
   private void stop(boolean suppressOutput) throws IOException {
@@ -173,9 +182,9 @@ final class UciProtocol {
         }
       }
       if (!suppressOutput.get()) {
-        String decision = "decision reason=" + reason
-            + " move=" + best.map(MoveNotation::format).orElse("0000")
-            + " side=" + position.getSideToMove().name().toLowerCase(java.util.Locale.ROOT)
+        String decision = SearchDiagnostics.decision(reason,
+            result != null ? result.bestMove().map(MoveNotation::format).orElse("none") : "none",
+            result, "side=" + position.getSideToMove().name().toLowerCase(java.util.Locale.ROOT)
             + " fullmove=" + position.getFullmoveNumber()
             + " halfmove=" + position.getHalfmoveClock()
             + " in_check=" + inCheck + " legal_moves=" + legalCount
@@ -183,10 +192,13 @@ final class UciProtocol {
             + " time_limit_ms=" + (options.timeMillis() < 0 ? "unlimited" : options.timeMillis())
             + " infinite=" + options.infinite() + " stop_requested=" + cancelled.get()
             + " elapsed_ms=" + (System.nanoTime() - start) / 1_000_000
-            + (result == null ? " depth=unavailable nodes=unavailable score=unavailable"
-                : " " + SearchDiagnostics.result(result));
-        errors.println(decision);
-        output.println("info string " + decision);
+            + " uci_move=" + best.map(MoveNotation::format).orElse("0000"));
+        logDiagnostic(decision);
+        if (result != null && result.bestMove().isPresent()) {
+          Board after = position.copy();
+          after.makeMove(result.bestMove().orElseThrow());
+          logDiagnostic(SearchDiagnostics.position(after, "projected_after_engine_move"));
+        }
         output.println("bestmove " + best.map(MoveNotation::format).orElse("0000"));
       }
     }
@@ -197,7 +209,8 @@ final class UciProtocol {
       }
       String scoreText = SearchDiagnostics.score(result.score());
       long elapsed = (System.nanoTime() - start) / 1_000_000;
-      String pv = result.bestMove().map(move -> " pv " + MoveNotation.format(move)).orElse("");
+      String pv = result.trace().principalVariation().isEmpty() ? ""
+          : " pv " + String.join(" ", result.trace().principalVariation());
       output.println("info depth " + result.depth() + " score " + scoreText
           + " nodes " + result.nodes() + " time " + elapsed + pv);
     }
