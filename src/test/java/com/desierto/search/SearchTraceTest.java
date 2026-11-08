@@ -21,7 +21,7 @@ class SearchTraceTest {
     for (boolean transpositions : new boolean[] {false, true}) {
       Board board = Board.standard();
       String initial = board.toString();
-      SearchResult result = new FixedDepthAlphaBetaEngine(false, transpositions)
+      SearchResult result = new AlphaBetaSearch(false, transpositions)
           .findBestMove(board, new SearchLimits(3));
 
       List<String> pv = result.trace().principalVariation();
@@ -40,7 +40,7 @@ class SearchTraceTest {
   void alternativeScoresAreExactOrValidUpperBounds() {
     Board board = Board.standard();
     for (boolean transpositions : new boolean[] {false, true}) {
-      SearchResult result = new FixedDepthAlphaBetaEngine(false, transpositions)
+      SearchResult result = new AlphaBetaSearch(false, transpositions)
           .findBestMove(board, new SearchLimits(2));
       List<SearchTrace.Alternative> alternatives = result.trace().alternatives();
       assertEquals(3, alternatives.size());
@@ -52,7 +52,7 @@ class SearchTraceTest {
         Move move = MoveNotation.find(candidate.move(),
             generator.generateLegalMoves(child, child.getSideToMove())).orElseThrow();
         child.makeMove(move);
-        int exact = -new FixedDepthMinimaxEngine().findBestMove(child, new SearchLimits(1)).score();
+        int exact = -new MinimaxSearch().findBestMove(child, new SearchLimits(1)).score();
         if (candidate.bound() == SearchTrace.Bound.EXACT) {
           assertEquals(exact, candidate.score(), candidate.move());
         } else {
@@ -66,7 +66,7 @@ class SearchTraceTest {
   void cancelledIterationRetainsTheLastCompletedTrace() {
     AtomicBoolean cancelled = new AtomicBoolean();
     List<SearchResult> completed = new ArrayList<>();
-    SearchResult result = new IterativeDeepeningEngine().findBestMove(Board.standard(),
+    SearchResult result = new IterativeDeepeningSearch().findBestMove(Board.standard(),
         new SearchLimits(4), cancelled::get, iteration -> {
           completed.add(iteration);
           cancelled.set(true);

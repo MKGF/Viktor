@@ -67,10 +67,10 @@ integración UCI.
 - [x] Puntuar la distancia al mate para preferir mates rápidos y retrasar derrotas inevitables.
 - [x] Añadir alpha-beta pruning.
 - [x] Añadir ordenación de movimientos: promociones, capturas, jaques y mejor jugada anterior.
-  `FixedDepthAlphaBetaEngine` acepta opcionalmente la clave de una jugada anterior en la raíz;
+  `AlphaBetaSearch` acepta opcionalmente la clave de una jugada anterior en la raíz;
   el llamador puede proporcionarla a partir de una búsqueda previa.
 - [x] Añadir iterative deepening para profundizar por etapas y respetar un límite de tiempo.
-  `IterativeDeepeningEngine.findBestMove(board, limits, timeLimit)` devuelve la última iteración
+  `IterativeDeepeningSearch.findBestMove(board, limits, timeLimit)` devuelve la última iteración
   completada, reutilizando su mejor jugada en la siguiente. Si no se completa ninguna, lanza
   `SearchTimeoutException`. Los nodos incluyen el trabajo de la iteración interrumpida.
   El límite se comprueba entre operaciones de búsqueda, no interrumpe una operación en curso.
@@ -110,7 +110,7 @@ integración UCI.
   Solo se reutilizan puntuaciones a la misma profundidad restante y distancia desde la raíz;
   las cotas alpha-beta se aplican según su tipo. Quiescence no se almacena en la tabla.
   Se activa por defecto y puede desactivarse con el segundo parámetro booleano de los
-  constructores de `FixedDepthAlphaBetaEngine` e `IterativeDeepeningEngine`.
+  constructores de `AlphaBetaSearch` e `IterativeDeepeningSearch`.
   La huella incluye el recuento de las posiciones relevantes desde el último movimiento de
   peón o captura, por lo que las transposiciones con contextos diferentes no comparten
   puntuaciones.

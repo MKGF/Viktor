@@ -44,7 +44,7 @@ class PositionalSearchTest {
   }
 
   private void assertReasonableMove(Board board, Set<String> reasonableMoves) {
-    SearchResult result = new FixedDepthAlphaBetaEngine().findBestMove(board, new SearchLimits(1));
+    SearchResult result = new AlphaBetaSearch().findBestMove(board, new SearchLimits(1));
     Move move = result.bestMove().orElseThrow();
     String notation = move.from().toAlgebraic().toLowerCase()
         + move.to().toAlgebraic().toLowerCase();
