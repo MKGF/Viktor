@@ -10,8 +10,8 @@ import com.desierto.domain.pieces.King;
 import com.desierto.domain.pieces.Pawn;
 import com.desierto.domain.pieces.Queen;
 import com.desierto.domain.pieces.Rook;
-import com.desierto.search.FixedDepthAlphaBetaEngine;
-import com.desierto.search.IterativeDeepeningEngine;
+import com.desierto.search.AlphaBetaSearch;
+import com.desierto.search.IterativeDeepeningSearch;
 import com.desierto.search.SearchLimits;
 import com.desierto.search.SearchResult;
 import com.desierto.search.SearchTimeoutException;
@@ -54,10 +54,10 @@ public final class SearchBenchmark {
       measureGeneration(position, config, out);
       for (boolean quiescence : new boolean[] {false, true}) {
         for (boolean transpositions : new boolean[] {false, true}) {
-          FixedDepthAlphaBetaEngine fixed = new FixedDepthAlphaBetaEngine(quiescence, transpositions);
+          AlphaBetaSearch fixed = new AlphaBetaSearch(quiescence, transpositions);
           measureSearch(position, config, out, "fixed", quiescence, transpositions,
               board -> fixed.findBestMove(board, new SearchLimits(config.fixedDepth())));
-          IterativeDeepeningEngine iterative = new IterativeDeepeningEngine(quiescence, transpositions);
+          IterativeDeepeningSearch iterative = new IterativeDeepeningSearch(quiescence, transpositions);
           measureSearch(position, config, out, "timed", quiescence, transpositions,
               board -> iterative.findBestMove(board, new SearchLimits(config.iterativeDepth()),
                   Duration.ofMillis(config.timeLimitMillis())));

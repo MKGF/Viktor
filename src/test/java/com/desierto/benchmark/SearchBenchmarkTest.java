@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.desierto.domain.Board;
 import com.desierto.domain.Cell;
 import com.desierto.domain.MoveGenerator;
-import com.desierto.search.FixedDepthAlphaBetaEngine;
+import com.desierto.search.AlphaBetaSearch;
 import com.desierto.search.SearchLimits;
 import com.desierto.search.SearchTimeoutException;
 import java.io.ByteArrayOutputStream;
@@ -54,9 +54,9 @@ class SearchBenchmarkTest {
     }
 
     Board tactical = SearchBenchmark.positions().get(1).board().get();
-    assertEquals(Cell.D5, new FixedDepthAlphaBetaEngine(false)
+    assertEquals(Cell.D5, new AlphaBetaSearch(false)
         .findBestMove(tactical, new SearchLimits(1)).bestMove().orElseThrow().to());
-    assertFalse(new FixedDepthAlphaBetaEngine()
+    assertFalse(new AlphaBetaSearch()
         .findBestMove(tactical, new SearchLimits(1)).bestMove().orElseThrow().to().equals(Cell.D5));
   }
 

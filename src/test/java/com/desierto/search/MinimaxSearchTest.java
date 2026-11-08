@@ -15,9 +15,9 @@ import com.desierto.domain.pieces.Rook;
 import com.desierto.search.evaluation.StandardPositionEvaluator;
 import org.junit.jupiter.api.Test;
 
-class FixedDepthMinimaxEngineTest {
+class MinimaxSearchTest {
 
-  private final SearchEngine engine = new FixedDepthMinimaxEngine();
+  private final SearchAlgorithm engine = new MinimaxSearch();
 
   @Test
   void shouldChooseTheHighestValueCaptureAtDepthOne() {

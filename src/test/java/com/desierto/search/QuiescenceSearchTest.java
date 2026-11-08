@@ -39,7 +39,7 @@ class QuiescenceSearchTest {
         .place(new Pawn(Color.BLACK, Cell.E6), Cell.E6)
         .place(new King(Color.BLACK, Cell.E8), Cell.E8)
         .build();
-    FixedDepthAlphaBetaEngine.SearchContext context = new FixedDepthAlphaBetaEngine.SearchContext();
+    AlphaBetaSearch.SearchContext context = new AlphaBetaSearch.SearchContext();
 
     int score = search.search(board, Color.WHITE, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, context);
 
@@ -62,7 +62,7 @@ class QuiescenceSearchTest {
         .build();
 
     int score = search.search(board, Color.WHITE, 0, Integer.MIN_VALUE, Integer.MAX_VALUE,
-        new FixedDepthAlphaBetaEngine.SearchContext());
+        new AlphaBetaSearch.SearchContext());
 
     assertTrue(score > 800 && score < 1000, "score=" + score);
   }
@@ -86,9 +86,9 @@ class QuiescenceSearchTest {
         .build();
 
     int promotionScore = search.search(promotion, Color.WHITE, 0,
-        Integer.MIN_VALUE, Integer.MAX_VALUE, new FixedDepthAlphaBetaEngine.SearchContext());
+        Integer.MIN_VALUE, Integer.MAX_VALUE, new AlphaBetaSearch.SearchContext());
     int enPassantScore = search.search(enPassant, Color.WHITE, 0,
-        Integer.MIN_VALUE, Integer.MAX_VALUE, new FixedDepthAlphaBetaEngine.SearchContext());
+        Integer.MIN_VALUE, Integer.MAX_VALUE, new AlphaBetaSearch.SearchContext());
     assertTrue(promotionScore > 800 && promotionScore < 1000, "score=" + promotionScore);
     assertTrue(enPassantScore > 50 && enPassantScore < 150, "score=" + enPassantScore);
   }
@@ -99,7 +99,7 @@ class QuiescenceSearchTest {
     PositionEvaluator evaluator = (position, perspective) ->
         generator.isKingInCheck(position, Color.WHITE) ? 1000 : -10;
     QuiescenceSearch searchWithCustomEvaluator = new QuiescenceSearch(evaluator, generator, ordering);
-    FixedDepthAlphaBetaEngine.SearchContext context = new FixedDepthAlphaBetaEngine.SearchContext();
+    AlphaBetaSearch.SearchContext context = new AlphaBetaSearch.SearchContext();
 
     int score = searchWithCustomEvaluator.search(board, Color.WHITE, 0,
         Integer.MIN_VALUE, Integer.MAX_VALUE, context);
@@ -113,7 +113,7 @@ class QuiescenceSearchTest {
     Board board = checkedPosition();
     QuiescenceSearch capped = new QuiescenceSearch((position, perspective) -> 123,
         generator, ordering, 0);
-    FixedDepthAlphaBetaEngine.SearchContext context = new FixedDepthAlphaBetaEngine.SearchContext();
+    AlphaBetaSearch.SearchContext context = new AlphaBetaSearch.SearchContext();
 
     int score = capped.search(board, Color.WHITE, 0, Integer.MIN_VALUE, Integer.MAX_VALUE, context);
 
@@ -154,7 +154,7 @@ class QuiescenceSearchTest {
         .filter(move -> move.move().promotionPiece() instanceof Knight)
         .findFirst().orElseThrow());
     QuiescenceSearch singleLine = new QuiescenceSearch(evaluator, generator, onePromotion);
-    FixedDepthAlphaBetaEngine.SearchContext context = new FixedDepthAlphaBetaEngine.SearchContext();
+    AlphaBetaSearch.SearchContext context = new AlphaBetaSearch.SearchContext();
 
     singleLine.search(board, Color.WHITE, 0, Integer.MIN_VALUE, Integer.MAX_VALUE, context);
 
@@ -181,9 +181,9 @@ class QuiescenceSearchTest {
 
     assertEquals(-StandardPositionEvaluator.CHECKMATE_SCORE + 3,
         search.search(checkmate, Color.BLACK, 3, Integer.MIN_VALUE, Integer.MAX_VALUE,
-            new FixedDepthAlphaBetaEngine.SearchContext()));
+            new AlphaBetaSearch.SearchContext()));
     assertEquals(0, search.search(stalemate, Color.BLACK, 3, Integer.MIN_VALUE, Integer.MAX_VALUE,
-        new FixedDepthAlphaBetaEngine.SearchContext()));
+        new AlphaBetaSearch.SearchContext()));
   }
 
   @Test
@@ -197,8 +197,8 @@ class QuiescenceSearchTest {
         .place(new King(Color.BLACK, Cell.E8), Cell.E8)
         .build();
 
-    SearchResult extended = new FixedDepthAlphaBetaEngine().findBestMove(board, new SearchLimits(1));
-    SearchResult original = new FixedDepthAlphaBetaEngine(false).findBestMove(board, new SearchLimits(1));
+    SearchResult extended = new AlphaBetaSearch().findBestMove(board, new SearchLimits(1));
+    SearchResult original = new AlphaBetaSearch(false).findBestMove(board, new SearchLimits(1));
 
     assertFalse(extended.bestMove().orElseThrow().to().equals(Cell.D5));
     assertEquals(Cell.D5, original.bestMove().orElseThrow().to());
@@ -207,10 +207,10 @@ class QuiescenceSearchTest {
 
   @Test
   void shouldRespectTheSearchDeadline() {
-    FixedDepthAlphaBetaEngine.SearchContext context =
-        new FixedDepthAlphaBetaEngine.SearchContext(() -> true);
+    AlphaBetaSearch.SearchContext context =
+        new AlphaBetaSearch.SearchContext(() -> true);
 
-    assertThrows(FixedDepthAlphaBetaEngine.SearchDeadlineExceeded.class,
+    assertThrows(AlphaBetaSearch.SearchDeadlineExceeded.class,
         () -> search.search(Board.standard(), Color.WHITE, 0,
             Integer.MIN_VALUE, Integer.MAX_VALUE, context));
     assertEquals(0, context.nodes());

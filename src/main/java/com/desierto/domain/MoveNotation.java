@@ -7,6 +7,7 @@ import com.desierto.domain.pieces.Rook;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Function;
 
 public final class MoveNotation {
 
@@ -18,12 +19,23 @@ public final class MoveNotation {
   }
 
   public static Optional<Move> find(String input, List<Move> legalMoves) {
+    return findMove(input, legalMoves, Function.identity());
+  }
+
+  public static Optional<LegalMove> findLegalMove(String input, List<LegalMove> legalMoves) {
+    return findMove(input, legalMoves, LegalMove::move);
+  }
+
+  private static <T> Optional<T> findMove(String input, List<T> moves, Function<T, Move> getMove) {
     Cell from = Cell.fromAlgebraic(input.substring(0, 2));
     Cell to = Cell.fromAlgebraic(input.substring(2, 4));
     char promotion = input.length() == 5 ? input.charAt(4) : '\0';
-    return legalMoves.stream()
-        .filter(move -> move.from().equals(from) && move.to().equals(to))
-        .filter(move -> promotionSymbol(move.promotionPiece()) == promotion)
+    return moves.stream()
+        .filter(item -> {
+          Move move = getMove.apply(item);
+          return move.from().equals(from) && move.to().equals(to)
+              && promotionSymbol(move.promotionPiece()) == promotion;
+        })
         .findFirst();
   }
 

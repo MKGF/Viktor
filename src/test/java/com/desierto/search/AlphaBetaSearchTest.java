@@ -17,15 +17,15 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-class FixedDepthAlphaBetaEngineTest {
+class AlphaBetaSearchTest {
 
   @Test
   void shouldMatchMinimaxWhileExploringFewerNodes() {
     Board board = Board.standard();
     SearchLimits limits = new SearchLimits(2);
 
-    SearchResult minimaxResult = new FixedDepthMinimaxEngine().findBestMove(board, limits);
-    SearchResult alphaBetaResult = new FixedDepthAlphaBetaEngine().findBestMove(board, limits);
+    SearchResult minimaxResult = new MinimaxSearch().findBestMove(board, limits);
+    SearchResult alphaBetaResult = new AlphaBetaSearch().findBestMove(board, limits);
 
     assertEquals(minimaxResult.bestMove(), alphaBetaResult.bestMove());
     assertEquals(minimaxResult.score(), alphaBetaResult.score());
@@ -45,10 +45,10 @@ class FixedDepthAlphaBetaEngineTest {
     SearchLimits limits = new SearchLimits(2);
     MoveOrderingStrategy unorderedStrategy = (position, moves, preferredMove) -> List.copyOf(moves);
 
-    SearchResult unorderedResult = new FixedDepthAlphaBetaEngine(
+    SearchResult unorderedResult = new AlphaBetaSearch(
         new com.desierto.search.evaluation.StandardPositionEvaluator(),
         new com.desierto.domain.MoveGenerator(), unorderedStrategy, false).findBestMove(board, limits);
-    SearchResult orderedResult = new FixedDepthAlphaBetaEngine(false).findBestMove(board, limits);
+    SearchResult orderedResult = new AlphaBetaSearch(false).findBestMove(board, limits);
 
     assertEquals(MoveKey.from(unorderedResult.bestMove().orElseThrow()),
         MoveKey.from(orderedResult.bestMove().orElseThrow()));
@@ -59,7 +59,7 @@ class FixedDepthAlphaBetaEngineTest {
   @Test
   void shouldUseAnEarlierBestMoveOnlyAtTheRoot() {
     Board board = Board.standard();
-    FixedDepthAlphaBetaEngine firstEngine = new FixedDepthAlphaBetaEngine();
+    AlphaBetaSearch firstEngine = new AlphaBetaSearch();
     MoveKey earlierBestMove = MoveKey.from(firstEngine.findBestMove(board, new SearchLimits(1))
         .bestMove().orElseThrow());
     List<Optional<MoveKey>> receivedPreferences = new ArrayList<>();
@@ -71,7 +71,7 @@ class FixedDepthAlphaBetaEngineTest {
       firstOrderedMoves.add(MoveKey.from(orderedMoves.getFirst().move()));
       return orderedMoves;
     };
-    FixedDepthAlphaBetaEngine engine = new FixedDepthAlphaBetaEngine(
+    AlphaBetaSearch engine = new AlphaBetaSearch(
         new com.desierto.search.evaluation.StandardPositionEvaluator(),
         new com.desierto.domain.MoveGenerator(), recordingStrategy);
 
@@ -93,7 +93,7 @@ class FixedDepthAlphaBetaEngineTest {
     Board board = Board.standard();
     MoveKey staleMove = new MoveKey(Color.WHITE, Cell.A1, Cell.A8,
         com.desierto.domain.MoveType.NORMAL, null);
-    FixedDepthAlphaBetaEngine engine = new FixedDepthAlphaBetaEngine();
+    AlphaBetaSearch engine = new AlphaBetaSearch();
 
     SearchResult result = engine.findBestMove(board, new SearchLimits(1), Optional.of(staleMove));
     SearchResult baseline = engine.findBestMove(board, new SearchLimits(1));
@@ -103,7 +103,7 @@ class FixedDepthAlphaBetaEngineTest {
 
   @Test
   void shouldRejectANullPreferredMoveOptional() {
-    FixedDepthAlphaBetaEngine engine = new FixedDepthAlphaBetaEngine();
+    AlphaBetaSearch engine = new AlphaBetaSearch();
 
     assertThrows(NullPointerException.class,
         () -> engine.findBestMove(Board.standard(), new SearchLimits(1), null));

@@ -17,7 +17,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
-public final class FixedDepthAlphaBetaEngine implements SearchEngine {
+public final class AlphaBetaSearch implements SearchAlgorithm {
 
   private final PositionEvaluator evaluator;
   private final MoveGenerator moveGenerator;
@@ -25,34 +25,34 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
   private final QuiescenceSearch quiescenceSearch;
   private final boolean transpositionsEnabled;
 
-  public FixedDepthAlphaBetaEngine() {
+  public AlphaBetaSearch() {
     this(true);
   }
 
-  public FixedDepthAlphaBetaEngine(boolean quiescenceEnabled) {
+  public AlphaBetaSearch(boolean quiescenceEnabled) {
     this(quiescenceEnabled, true);
   }
 
-  public FixedDepthAlphaBetaEngine(boolean quiescenceEnabled, boolean transpositionsEnabled) {
+  public AlphaBetaSearch(boolean quiescenceEnabled, boolean transpositionsEnabled) {
     this(new StandardPositionEvaluator(), new MoveGenerator(), new TacticalMoveOrderingStrategy(),
         quiescenceEnabled, transpositionsEnabled);
   }
 
-  FixedDepthAlphaBetaEngine(PositionEvaluator evaluator, MoveGenerator moveGenerator) {
+  AlphaBetaSearch(PositionEvaluator evaluator, MoveGenerator moveGenerator) {
     this(evaluator, moveGenerator, new TacticalMoveOrderingStrategy());
   }
 
-  FixedDepthAlphaBetaEngine(PositionEvaluator evaluator, MoveGenerator moveGenerator,
+  AlphaBetaSearch(PositionEvaluator evaluator, MoveGenerator moveGenerator,
       MoveOrderingStrategy moveOrderingStrategy) {
     this(evaluator, moveGenerator, moveOrderingStrategy, true);
   }
 
-  FixedDepthAlphaBetaEngine(PositionEvaluator evaluator, MoveGenerator moveGenerator,
+  AlphaBetaSearch(PositionEvaluator evaluator, MoveGenerator moveGenerator,
       MoveOrderingStrategy moveOrderingStrategy, boolean quiescenceEnabled) {
     this(evaluator, moveGenerator, moveOrderingStrategy, quiescenceEnabled, false);
   }
 
-  FixedDepthAlphaBetaEngine(PositionEvaluator evaluator, MoveGenerator moveGenerator,
+  AlphaBetaSearch(PositionEvaluator evaluator, MoveGenerator moveGenerator,
       MoveOrderingStrategy moveOrderingStrategy, boolean quiescenceEnabled,
       boolean transpositionsEnabled) {
     this.evaluator = Objects.requireNonNull(evaluator, "evaluator must not be null");
@@ -95,13 +95,17 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       context.checkTime();
       return new SearchResult(Optional.empty(), perspective, score, 0, context.nodes());
     }
-    if (DrawDetector.isDeadByInsufficientMaterial(workingBoard)
-        || DrawDetector.isSeventyFiveMoveDraw(workingBoard, moveGenerator)
-        || DrawDetector.isThreefoldRepetitionDraw(workingBoard, moveGenerator)) {
+    if (isAutomaticDraw(workingBoard)) {
       context.checkTime();
       return new SearchResult(Optional.empty(), perspective, 0, 0, context.nodes());
     }
 
+    return searchRootMoves(position, legalMoves, limits.maxDepth(), perspective, preferredMove, context);
+  }
+
+  private SearchResult searchRootMoves(SearchPosition position, List<LegalMove> legalMoves, int depth,
+      Color perspective, Optional<MoveKey> preferredMove, SearchContext context) {
+    Board workingBoard = position.board();
     Optional<DrawClaim> claim = SearchDrawRules.claim(workingBoard, legalMoves);
     Move bestMove = null;
     int bestScore = claim.isPresent() ? 0 : Integer.MIN_VALUE;
@@ -115,8 +119,8 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       Move move = legalMove.move();
       int score;
       int initialAlpha = alpha;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
-        score = alphaBeta(position, limits.maxDepth() - 1, perspective, 1, alpha, beta, context);
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
+        score = alphaBeta(position, depth - 1, perspective, 1, alpha, beta, context);
       }
       String notation = MoveNotation.format(move);
       alternatives.add(new SearchTrace.Alternative(notation, score,
@@ -136,10 +140,10 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
         alternatives.subList(0, Math.min(3, alternatives.size())));
     if (bestMove == null && claim.isPresent()) {
       Optional<Move> intended = claim.orElseThrow().intendedMove().map(position::originalMove);
-      return new SearchResult(Optional.empty(), perspective, 0, limits.maxDepth(), context.nodes(),
+      return new SearchResult(Optional.empty(), perspective, 0, depth, context.nodes(),
           Optional.of(new DrawClaim(intended)), new SearchTrace(List.of(), topAlternatives));
     }
-    return new SearchResult(Optional.of(position.originalMove(bestMove)), perspective, bestScore, limits.maxDepth(),
+    return new SearchResult(Optional.of(position.originalMove(bestMove)), perspective, bestScore, depth,
         context.nodes(), Optional.empty(), new SearchTrace(bestLine, topAlternatives));
   }
 
@@ -152,22 +156,12 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       return quiescenceSearch.search(position, perspective, plyFromRoot, alpha, beta, context);
     }
     context.visitPosition();
-    if (DrawDetector.isDeadByInsufficientMaterial(board)) {
-      context.checkTime();
-      return 0;
-    }
-    if (DrawDetector.isSeventyFiveMoveDraw(board, moveGenerator)
-        || DrawDetector.isThreefoldRepetitionDraw(board, moveGenerator)) {
+    if (isAutomaticDraw(board)) {
       context.checkTime();
       return 0;
     }
     if (remainingDepth == 0) {
-      int score = evaluator.evaluate(board, perspective, plyFromRoot);
-      if (SearchDrawRules.canClaim(board, moveGenerator)) {
-        score = SearchDrawRules.withClaimOption(score, board, perspective);
-      }
-      context.checkTime();
-      return score;
+      return evaluateLeaf(board, perspective, plyFromRoot, context);
     }
 
     int originalAlpha = alpha;
@@ -193,44 +187,56 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
       return score;
     }
 
+    int bestScore;
     if (board.getSideToMove() == perspective) {
-      int bestScore = SearchDrawRules.claim(board, legalMoves).isPresent() ? 0 : Integer.MIN_VALUE;
-      alpha = Math.max(alpha, bestScore);
-      for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
-        int score;
-        try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
-          score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
-              context);
-        }
-        if (score > bestScore) {
-          principalVariation.clear();
-          principalVariation.add(MoveNotation.format(legalMove.move()));
-          principalVariation.addAll(context.pvLine(plyFromRoot + 1));
-        }
-        bestScore = Math.max(bestScore, score);
-        alpha = Math.max(alpha, bestScore);
-        if (alpha >= beta) {
-          break;
-        }
-      }
-      if (context.table != null) {
-        context.table.store(key, remainingDepth, plyFromRoot, bestScore, originalAlpha, originalBeta);
-      }
-      return bestScore;
+      bestScore = maximizeScore(position, legalMoves, remainingDepth, perspective, plyFromRoot,
+          alpha, beta, context);
+    } else {
+      bestScore = minimizeScore(position, legalMoves, remainingDepth, perspective, plyFromRoot,
+          alpha, beta, context);
     }
+    if (context.table != null) {
+      context.table.store(key, remainingDepth, plyFromRoot, bestScore, originalAlpha, originalBeta);
+    }
+    return bestScore;
+  }
 
+  private int maximizeScore(SearchPosition position, List<LegalMove> legalMoves, int remainingDepth,
+      Color perspective, int plyFromRoot, int alpha, int beta, SearchContext context) {
+    Board board = position.board();
+    int bestScore = SearchDrawRules.claim(board, legalMoves).isPresent() ? 0 : Integer.MIN_VALUE;
+    alpha = Math.max(alpha, bestScore);
+    for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
+      int score;
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
+        score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
+            context);
+      }
+      if (score > bestScore) {
+        updatePrincipalVariation(context, plyFromRoot, legalMove.move());
+      }
+      bestScore = Math.max(bestScore, score);
+      alpha = Math.max(alpha, bestScore);
+      if (alpha >= beta) {
+        break;
+      }
+    }
+    return bestScore;
+  }
+
+  private int minimizeScore(SearchPosition position, List<LegalMove> legalMoves, int remainingDepth,
+      Color perspective, int plyFromRoot, int alpha, int beta, SearchContext context) {
+    Board board = position.board();
     int bestScore = SearchDrawRules.claim(board, legalMoves).isPresent() ? 0 : Integer.MAX_VALUE;
     beta = Math.min(beta, bestScore);
     for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
         score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
             context);
       }
       if (score < bestScore) {
-        principalVariation.clear();
-        principalVariation.add(MoveNotation.format(legalMove.move()));
-        principalVariation.addAll(context.pvLine(plyFromRoot + 1));
+        updatePrincipalVariation(context, plyFromRoot, legalMove.move());
       }
       bestScore = Math.min(bestScore, score);
       beta = Math.min(beta, bestScore);
@@ -238,10 +244,29 @@ public final class FixedDepthAlphaBetaEngine implements SearchEngine {
         break;
       }
     }
-    if (context.table != null) {
-      context.table.store(key, remainingDepth, plyFromRoot, bestScore, originalAlpha, originalBeta);
-    }
     return bestScore;
+  }
+
+  private boolean isAutomaticDraw(Board board) {
+    return DrawDetector.isDeadByInsufficientMaterial(board)
+        || DrawDetector.isSeventyFiveMoveDraw(board, moveGenerator)
+        || DrawDetector.isThreefoldRepetitionDraw(board, moveGenerator);
+  }
+
+  private int evaluateLeaf(Board board, Color perspective, int plyFromRoot, SearchContext context) {
+    int score = evaluator.evaluate(board, perspective, plyFromRoot);
+    if (SearchDrawRules.canClaim(board, moveGenerator)) {
+      score = SearchDrawRules.withClaimOption(score, board, perspective);
+    }
+    context.checkTime();
+    return score;
+  }
+
+  private static void updatePrincipalVariation(SearchContext context, int plyFromRoot, Move move) {
+    List<String> principalVariation = context.pvLine(plyFromRoot);
+    principalVariation.clear();
+    principalVariation.add(MoveNotation.format(move));
+    principalVariation.addAll(context.pvLine(plyFromRoot + 1));
   }
 
   private List<LegalMove> orderMoves(Board board, List<LegalMove> legalMoves, SearchContext context) {

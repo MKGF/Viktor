@@ -22,13 +22,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
-class IterativeDeepeningEngineTest {
+class IterativeDeepeningSearchTest {
 
   @Test
   void cancellationReturnsTheLastReportedIteration() {
     AtomicBoolean cancelled = new AtomicBoolean();
     List<SearchResult> iterations = new ArrayList<>();
-    SearchResult result = new IterativeDeepeningEngine().findBestMove(Board.standard(),
+    SearchResult result = new IterativeDeepeningSearch().findBestMove(Board.standard(),
         new SearchLimits(5), cancelled::get, completed -> {
           iterations.add(completed);
           cancelled.set(true);
@@ -51,14 +51,14 @@ class IterativeDeepeningEngineTest {
       }
       return tactical.order(position, moves, preferred);
     };
-    FixedDepthAlphaBetaEngine fixed = new FixedDepthAlphaBetaEngine(
+    AlphaBetaSearch fixed = new AlphaBetaSearch(
         new StandardPositionEvaluator(), new MoveGenerator(), strategy);
-    IterativeDeepeningEngine iterative = new IterativeDeepeningEngine(fixed, () -> 0);
+    IterativeDeepeningSearch iterative = new IterativeDeepeningSearch(fixed, () -> 0);
 
-    SearchResult depthOne = new FixedDepthAlphaBetaEngine()
+    SearchResult depthOne = new AlphaBetaSearch()
         .findBestMove(board, new SearchLimits(1));
     SearchResult result = iterative.findBestMove(board, new SearchLimits(2), Duration.ofSeconds(1));
-    SearchResult baseline = new FixedDepthAlphaBetaEngine()
+    SearchResult baseline = new AlphaBetaSearch()
         .findBestMove(board, new SearchLimits(2));
 
     assertEquals(List.of(Optional.empty(), depthOne.bestMove().map(MoveKey::from)), rootPreferences);
@@ -84,10 +84,10 @@ class IterativeDeepeningEngineTest {
       }
       return ordered;
     };
-    IterativeDeepeningEngine engine = new IterativeDeepeningEngine(
-        new FixedDepthAlphaBetaEngine(new StandardPositionEvaluator(), new MoveGenerator(), strategy),
+    IterativeDeepeningSearch engine = new IterativeDeepeningSearch(
+        new AlphaBetaSearch(new StandardPositionEvaluator(), new MoveGenerator(), strategy),
         clock::get);
-    SearchResult depthOne = new FixedDepthAlphaBetaEngine()
+    SearchResult depthOne = new AlphaBetaSearch()
         .findBestMove(board, new SearchLimits(1));
 
     SearchResult result = engine.findBestMove(board, new SearchLimits(3), Duration.ofNanos(1));
@@ -101,8 +101,8 @@ class IterativeDeepeningEngineTest {
   @Test
   void shouldReportTimeoutBeforeAnyIterationCompletes() {
     AtomicLong clock = new AtomicLong();
-    IterativeDeepeningEngine engine = new IterativeDeepeningEngine(
-        new FixedDepthAlphaBetaEngine(), clock::getAndIncrement);
+    IterativeDeepeningSearch engine = new IterativeDeepeningSearch(
+        new AlphaBetaSearch(), clock::getAndIncrement);
 
     assertThrows(SearchTimeoutException.class,
         () -> engine.findBestMove(Board.standard(), new SearchLimits(2), Duration.ofNanos(1)));
@@ -119,8 +119,8 @@ class IterativeDeepeningEngineTest {
       clock.set(1);
       return 0;
     };
-    IterativeDeepeningEngine engine = new IterativeDeepeningEngine(
-        new FixedDepthAlphaBetaEngine(evaluator, new MoveGenerator()), clock::get);
+    IterativeDeepeningSearch engine = new IterativeDeepeningSearch(
+        new AlphaBetaSearch(evaluator, new MoveGenerator()), clock::get);
 
     assertThrows(SearchTimeoutException.class,
         () -> engine.findBestMove(board, new SearchLimits(1), Duration.ofNanos(1)));
@@ -135,8 +135,8 @@ class IterativeDeepeningEngineTest {
     Board board = Board.standard();
     SearchLimits limits = new SearchLimits(2);
 
-    SearchResult result = new IterativeDeepeningEngine().findBestMove(board, limits);
-    SearchResult baseline = new FixedDepthAlphaBetaEngine().findBestMove(board, limits);
+    SearchResult result = new IterativeDeepeningSearch().findBestMove(board, limits);
+    SearchResult baseline = new AlphaBetaSearch().findBestMove(board, limits);
 
     assertEquals(2, result.depth());
     assertEquals(baseline.score(), result.score());
@@ -153,7 +153,7 @@ class IterativeDeepeningEngineTest {
         .place(new King(Color.WHITE, Cell.F6), Cell.F6)
         .build();
 
-    SearchResult result = new IterativeDeepeningEngine().findBestMove(board, new SearchLimits(3));
+    SearchResult result = new IterativeDeepeningSearch().findBestMove(board, new SearchLimits(3));
 
     assertTrue(result.bestMove().isEmpty());
     assertEquals(0, result.depth());
@@ -163,7 +163,7 @@ class IterativeDeepeningEngineTest {
 
   @Test
   void shouldValidateTheTimeLimit() {
-    IterativeDeepeningEngine engine = new IterativeDeepeningEngine();
+    IterativeDeepeningSearch engine = new IterativeDeepeningSearch();
     Board board = Board.standard();
     SearchLimits limits = new SearchLimits(1);
 

@@ -22,7 +22,7 @@ import com.desierto.domain.pieces.Rook;
 import com.desierto.console.ConsoleGame.TimedSearch;
 import com.desierto.search.SearchLimits;
 import com.desierto.search.DrawClaim;
-import com.desierto.search.IterativeDeepeningEngine;
+import com.desierto.search.IterativeDeepeningSearch;
 import com.desierto.search.SearchResult;
 import com.desierto.search.SearchTimeoutException;
 import java.io.BufferedReader;
@@ -195,7 +195,7 @@ class ConsoleGameTest {
         .place(new King(Color.BLACK, Cell.H8), Cell.H8)
         .place(new Queen(Color.BLACK, Cell.F8), Cell.F8).build();
     String initial = board.toString();
-    String output = play(board, Color.BLACK, new IterativeDeepeningEngine()::findBestMove, "");
+    String output = play(board, Color.BLACK, new IterativeDeepeningSearch()::findBestMove, "");
 
     assertTrue(output.contains("Viktor claims a fifty-move draw with intended move"));
     assertEquals(initial, board.toString());

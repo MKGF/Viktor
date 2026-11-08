@@ -64,9 +64,9 @@ class TranspositionTableTest {
 
     for (boolean quiescence : new boolean[] {false, true}) {
       for (Board position : positions) {
-        SearchResult without = new FixedDepthAlphaBetaEngine(quiescence, false)
+        SearchResult without = new AlphaBetaSearch(quiescence, false)
             .findBestMove(position, new SearchLimits(3));
-        SearchResult with = new FixedDepthAlphaBetaEngine(quiescence, true)
+        SearchResult with = new AlphaBetaSearch(quiescence, true)
             .findBestMove(position, new SearchLimits(3));
         assertEquals(without.score(), with.score());
         assertEquals(without.depth(), with.depth());
@@ -80,8 +80,8 @@ class TranspositionTableTest {
   void shouldReduceNodesForTranspositionsWithoutChangingScore() {
     Board board = Board.standard();
     SearchLimits limits = new SearchLimits(4);
-    SearchResult without = new FixedDepthAlphaBetaEngine(false, false).findBestMove(board, limits);
-    SearchResult with = new FixedDepthAlphaBetaEngine(false, true).findBestMove(board, limits);
+    SearchResult without = new AlphaBetaSearch(false, false).findBestMove(board, limits);
+    SearchResult with = new AlphaBetaSearch(false, true).findBestMove(board, limits);
 
     assertEquals(without.score(), with.score());
     assertTrue(with.nodes() < without.nodes(), "Transpositions should avoid exploring duplicate subtrees");
@@ -91,8 +91,8 @@ class TranspositionTableTest {
   void shouldPreserveQuiescenceScoresAtTranspositionDepth() {
     Board board = Board.standard();
     SearchLimits limits = new SearchLimits(4);
-    SearchResult without = new FixedDepthAlphaBetaEngine(true, false).findBestMove(board, limits);
-    SearchResult with = new FixedDepthAlphaBetaEngine(true, true).findBestMove(board, limits);
+    SearchResult without = new AlphaBetaSearch(true, false).findBestMove(board, limits);
+    SearchResult with = new AlphaBetaSearch(true, true).findBestMove(board, limits);
 
     assertEquals(without.score(), with.score());
     assertTrue(with.nodes() < without.nodes());
@@ -101,9 +101,9 @@ class TranspositionTableTest {
   @Test
   void shouldPreserveIterativeSearchScores() {
     Board board = Board.standard();
-    SearchResult without = new IterativeDeepeningEngine(false, false)
+    SearchResult without = new IterativeDeepeningSearch(false, false)
         .findBestMove(board, new SearchLimits(4));
-    SearchResult with = new IterativeDeepeningEngine(false, true)
+    SearchResult with = new IterativeDeepeningSearch(false, true)
         .findBestMove(board, new SearchLimits(4));
 
     assertEquals(without.score(), with.score());

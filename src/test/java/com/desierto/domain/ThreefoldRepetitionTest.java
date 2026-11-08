@@ -46,7 +46,7 @@ class ThreefoldRepetitionTest {
     last.givesCheck();
     assertEquals(before, position.board().repetitionHistoryFingerprint());
     assertThrows(IllegalStateException.class, () -> {
-      try (SearchPosition.MoveScope ignored = position.apply(last)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(last)) {
         assertTrue(position.board().isThreefoldRepetition());
         throw new IllegalStateException("interrupt");
       }
@@ -54,7 +54,7 @@ class ThreefoldRepetitionTest {
     assertFalse(position.board().isThreefoldRepetition());
     assertEquals(before, position.board().repetitionHistoryFingerprint());
     assertFalse(source.isThreefoldRepetition());
-    try (SearchPosition.MoveScope ignored = position.apply(find(position.board(), "f6h5"))) {
+    try (SearchPosition.MoveScope ignored = position.exploreMove(find(position.board(), "f6h5"))) {
       assertFalse(position.board().isThreefoldRepetition());
     }
     assertEquals(before, position.board().repetitionHistoryFingerprint());
@@ -69,7 +69,7 @@ class ThreefoldRepetitionTest {
     long before = board.repetitionHistoryFingerprint();
     LegalMove pawnMove = find(board, "e2e4");
     assertEquals(0, pawnMove.resultingPosition().repetitionHistoryFingerprint());
-    try (SearchPosition.MoveScope ignored = position.apply(pawnMove)) {
+    try (SearchPosition.MoveScope ignored = position.exploreMove(pawnMove)) {
       assertEquals(0, board.repetitionHistoryFingerprint());
     }
     assertEquals(before, board.repetitionHistoryFingerprint());

@@ -38,17 +38,17 @@ final class QuiescenceSearch {
   }
 
   int search(Board board, Color perspective, int plyFromRoot, int alpha, int beta,
-      FixedDepthAlphaBetaEngine.SearchContext context) {
+      AlphaBetaSearch.SearchContext context) {
     return search(new SearchPosition(board), perspective, plyFromRoot, alpha, beta, context);
   }
 
   int search(SearchPosition position, Color perspective, int plyFromRoot, int alpha, int beta,
-      FixedDepthAlphaBetaEngine.SearchContext context) {
+      AlphaBetaSearch.SearchContext context) {
     return search(position, perspective, plyFromRoot, 0, alpha, beta, context);
   }
 
   private int search(SearchPosition position, Color perspective, int plyFromRoot, int quiescencePly,
-      int alpha, int beta, FixedDepthAlphaBetaEngine.SearchContext context) {
+      int alpha, int beta, AlphaBetaSearch.SearchContext context) {
     Board board = position.board();
     context.visitPosition();
     if (DrawDetector.isDeadByInsufficientMaterial(board)) {
@@ -112,7 +112,7 @@ final class QuiescenceSearch {
     context.checkTime();
     for (LegalMove move : orderedMoves) {
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(move)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(move)) {
         score = search(position, perspective, plyFromRoot + 1,
             quiescencePly + 1, alpha, beta, context);
       }
@@ -131,7 +131,7 @@ final class QuiescenceSearch {
   }
 
   private int evaluate(Board board, Color perspective, int plyFromRoot,
-      FixedDepthAlphaBetaEngine.SearchContext context) {
+      AlphaBetaSearch.SearchContext context) {
     int score = evaluator.evaluate(board, perspective, plyFromRoot);
     context.checkTime();
     return score;

@@ -13,16 +13,16 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public final class FixedDepthMinimaxEngine implements SearchEngine {
+public final class MinimaxSearch implements SearchAlgorithm {
 
   private final PositionEvaluator evaluator;
   private final MoveGenerator moveGenerator;
 
-  public FixedDepthMinimaxEngine() {
+  public MinimaxSearch() {
     this(new StandardPositionEvaluator(), new MoveGenerator());
   }
 
-  FixedDepthMinimaxEngine(PositionEvaluator evaluator, MoveGenerator moveGenerator) {
+  MinimaxSearch(PositionEvaluator evaluator, MoveGenerator moveGenerator) {
     this.evaluator = Objects.requireNonNull(evaluator, "evaluator must not be null");
     this.moveGenerator = Objects.requireNonNull(moveGenerator, "moveGenerator must not be null");
   }
@@ -54,7 +54,7 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
     for (LegalMove legalMove : legalMoves) {
       Move move = legalMove.move();
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
         score = minimax(position, limits.maxDepth() - 1, perspective, 1, context);
       }
       if (score > bestScore) {
@@ -99,7 +99,7 @@ public final class FixedDepthMinimaxEngine implements SearchEngine {
         ? 0 : maximizesScore ? Integer.MIN_VALUE : Integer.MAX_VALUE;
     for (LegalMove legalMove : legalMoves) {
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
         score = minimax(position, remainingDepth - 1, perspective, plyFromRoot + 1, context);
       }
       bestScore = maximizesScore ? Math.max(bestScore, score) : Math.min(bestScore, score);

@@ -25,9 +25,9 @@ class ThreefoldRepetitionSearchTest {
     Board board = almostRepeated();
     play(board, "f6g8");
     assertEquals(0, new StandardPositionEvaluator().evaluate(board, Color.WHITE));
-    for (SearchEngine engine : List.of(new FixedDepthMinimaxEngine(),
-        new FixedDepthAlphaBetaEngine(false, false), new FixedDepthAlphaBetaEngine(true, true),
-        new IterativeDeepeningEngine())) {
+    for (SearchAlgorithm engine : List.of(new MinimaxSearch(),
+        new AlphaBetaSearch(false, false), new AlphaBetaSearch(true, true),
+        new IterativeDeepeningSearch())) {
       SearchResult result = engine.findBestMove(board, new SearchLimits(2));
       assertTrue(result.bestMove().isEmpty());
       assertTrue(result.drawClaim().isEmpty());
@@ -41,15 +41,15 @@ class ThreefoldRepetitionSearchTest {
     Board board = almostRepeated();
     for (boolean quiescence : new boolean[] {false, true}) {
       for (boolean cached : new boolean[] {false, true}) {
-        SearchEngine engine = new FixedDepthAlphaBetaEngine(losing, generator,
+        SearchAlgorithm engine = new AlphaBetaSearch(losing, generator,
             new TacticalMoveOrderingStrategy(), quiescence, cached);
         assertDrawMove(engine, board);
       }
     }
-    assertDrawMove(new FixedDepthMinimaxEngine(losing, generator), board);
-    FixedDepthAlphaBetaEngine fixed = new FixedDepthAlphaBetaEngine(losing, generator,
+    assertDrawMove(new MinimaxSearch(losing, generator), board);
+    AlphaBetaSearch fixed = new AlphaBetaSearch(losing, generator,
         new TacticalMoveOrderingStrategy(), true, true);
-    assertDrawMove(new IterativeDeepeningEngine(fixed, () -> 0), board);
+    assertDrawMove(new IterativeDeepeningSearch(fixed, () -> 0), board);
     assertFalse(board.isThreefoldRepetition());
   }
 
@@ -82,19 +82,19 @@ class ThreefoldRepetitionSearchTest {
       }
       return tactical.order(position, moves, preferred);
     };
-    FixedDepthAlphaBetaEngine engine = new FixedDepthAlphaBetaEngine(losing, generator, strategy,
+    AlphaBetaSearch engine = new AlphaBetaSearch(losing, generator, strategy,
         false, true);
-    FixedDepthAlphaBetaEngine.SearchContext context =
-        new FixedDepthAlphaBetaEngine.SearchContext(expired::get);
-    assertThrows(FixedDepthAlphaBetaEngine.SearchDeadlineExceeded.class,
+    AlphaBetaSearch.SearchContext context =
+        new AlphaBetaSearch.SearchContext(expired::get);
+    assertThrows(AlphaBetaSearch.SearchDeadlineExceeded.class,
         () -> engine.findBestMove(board, new SearchLimits(2), java.util.Optional.empty(), context));
     assertEquals(before, board.repetitionHistoryFingerprint());
     assertEquals(before, working[0].repetitionHistoryFingerprint());
     assertEquals(board.toString(), working[0].toString());
-    assertDrawMove(new FixedDepthMinimaxEngine(losing, generator), board);
+    assertDrawMove(new MinimaxSearch(losing, generator), board);
   }
 
-  private void assertDrawMove(SearchEngine engine, Board board) {
+  private void assertDrawMove(SearchAlgorithm engine, Board board) {
     SearchResult result = engine.findBestMove(board, new SearchLimits(1));
     Move move = result.bestMove().orElseThrow();
     assertEquals("F6G8", move.from().toAlgebraic() + move.to().toAlgebraic());

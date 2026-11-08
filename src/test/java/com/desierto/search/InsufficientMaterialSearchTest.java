@@ -31,9 +31,9 @@ class InsufficientMaterialSearchTest {
     assertEquals(0, new StandardPositionEvaluator().evaluate(board, Color.WHITE));
     assertEquals(0, new StandardPositionEvaluator().evaluate(board, Color.BLACK));
 
-    for (SearchEngine engine : List.of(new FixedDepthMinimaxEngine(),
-        new FixedDepthAlphaBetaEngine(false, false),
-        new FixedDepthAlphaBetaEngine(true, true), new IterativeDeepeningEngine())) {
+    for (SearchAlgorithm engine : List.of(new MinimaxSearch(),
+        new AlphaBetaSearch(false, false),
+        new AlphaBetaSearch(true, true), new IterativeDeepeningSearch())) {
       SearchResult result = engine.findBestMove(board, new SearchLimits(3));
       assertTrue(result.bestMove().isEmpty());
       assertEquals(0, result.score());
@@ -44,10 +44,10 @@ class InsufficientMaterialSearchTest {
   @Test
   void shouldPreferAForcedDrawToALosingEvaluationWithinTheSearch() {
     PositionEvaluator losing = (board, perspective) -> -1000;
-    for (SearchEngine engine : List.of(
-        new FixedDepthMinimaxEngine(losing, new MoveGenerator()),
-        new FixedDepthAlphaBetaEngine(losing, new MoveGenerator(), new TacticalMoveOrderingStrategy(), false, false),
-        new FixedDepthAlphaBetaEngine(losing, new MoveGenerator(), new TacticalMoveOrderingStrategy(), true, true))) {
+    for (SearchAlgorithm engine : List.of(
+        new MinimaxSearch(losing, new MoveGenerator()),
+        new AlphaBetaSearch(losing, new MoveGenerator(), new TacticalMoveOrderingStrategy(), false, false),
+        new AlphaBetaSearch(losing, new MoveGenerator(), new TacticalMoveOrderingStrategy(), true, true))) {
       Board board = BoardFactory.position().castlingRights(false, false, false, false)
           .place(new King(Color.WHITE, Cell.C3), Cell.C3)
           .place(new Knight(Color.WHITE, Cell.A1), Cell.A1)
@@ -70,10 +70,10 @@ class InsufficientMaterialSearchTest {
         .place(new Knight(Color.WHITE, Cell.B1), Cell.B1)
         .place(new King(Color.BLACK, Cell.H8), Cell.H8).build();
     AtomicInteger checks = new AtomicInteger();
-    var context = new FixedDepthAlphaBetaEngine.SearchContext(() -> checks.getAndIncrement() >= 2);
+    var context = new AlphaBetaSearch.SearchContext(() -> checks.getAndIncrement() >= 2);
 
-    assertThrows(FixedDepthAlphaBetaEngine.SearchDeadlineExceeded.class,
-        () -> new FixedDepthAlphaBetaEngine().findBestMove(board, new SearchLimits(1),
+    assertThrows(AlphaBetaSearch.SearchDeadlineExceeded.class,
+        () -> new AlphaBetaSearch().findBestMove(board, new SearchLimits(1),
             Optional.empty(), context));
   }
 }

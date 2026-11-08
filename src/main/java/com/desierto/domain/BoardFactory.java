@@ -39,10 +39,7 @@ public final class BoardFactory {
 
     private final List<Placement> placements = new ArrayList<>();
     private Color sideToMove = Color.WHITE;
-    private boolean whiteKingsideCastleRight = true;
-    private boolean whiteQueensideCastleRight = true;
-    private boolean blackKingsideCastleRight = true;
-    private boolean blackQueensideCastleRight = true;
+    private CastlingRights castlingRights = CastlingRights.INITIAL;
     private Cell enPassantTarget;
     private int halfmoveClock;
     private int fullmoveNumber = 1;
@@ -59,10 +56,8 @@ public final class BoardFactory {
 
     public PositionBuilder castlingRights(boolean whiteKingside, boolean whiteQueenside,
         boolean blackKingside, boolean blackQueenside) {
-      whiteKingsideCastleRight = whiteKingside;
-      whiteQueensideCastleRight = whiteQueenside;
-      blackKingsideCastleRight = blackKingside;
-      blackQueensideCastleRight = blackQueenside;
+      castlingRights = new CastlingRights(whiteKingside, whiteQueenside,
+          blackKingside, blackQueenside);
       return this;
     }
 
@@ -83,8 +78,7 @@ public final class BoardFactory {
 
     public Board build() {
       Board board = new Board();
-      board.configurePosition(sideToMove, whiteKingsideCastleRight, whiteQueensideCastleRight,
-          blackKingsideCastleRight, blackQueensideCastleRight, enPassantTarget, halfmoveClock,
+      board.configurePosition(sideToMove, castlingRights, enPassantTarget, halfmoveClock,
           fullmoveNumber);
       for (Placement placement : placements) {
         board.placePiece(placement.piece(), placement.cell());

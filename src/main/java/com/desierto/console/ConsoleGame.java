@@ -4,10 +4,11 @@ import com.desierto.EngineInfo;
 import com.desierto.domain.Board;
 import com.desierto.domain.Color;
 import com.desierto.domain.DrawDetector;
+import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
-import com.desierto.search.IterativeDeepeningEngine;
+import com.desierto.search.Engine;
 import com.desierto.search.SearchLimits;
 import com.desierto.search.SearchDiagnostics;
 import com.desierto.search.SearchResult;
@@ -36,7 +37,7 @@ public final class ConsoleGame {
   }
 
   public ConsoleGame(Color humanColor, int depth, Duration timeLimit) {
-    this(Board.standard(), humanColor, new IterativeDeepeningEngine()::findBestMove,
+    this(Board.standard(), humanColor, new Engine()::think,
         new SearchLimits(depth), timeLimit);
   }
 
@@ -63,7 +64,7 @@ public final class ConsoleGame {
     output.println(SearchDiagnostics.position(board, "initial"));
     while (true) {
       Color side = board.getSideToMove();
-      List<Move> legalMoves = generator.generateLegalMoves(board, side);
+      List<LegalMove> legalMoves = generator.generateLegalMoveApplications(board, side);
       boolean inCheck = generator.isKingInCheck(board, side);
       if (legalMoves.isEmpty()) {
         if (inCheck) {
@@ -118,9 +119,9 @@ public final class ConsoleGame {
             output.println("Invalid intended move. Example: claim b1c3.");
             continue;
           }
-          var intendedMove = MoveNotation.find(intended, legalMoves);
+          var intendedMove = MoveNotation.findLegalMove(intended, legalMoves);
           if (intendedMove.isPresent()
-              && DrawDetector.canClaimFiftyMovesAfter(board, intendedMove.orElseThrow())) {
+              && DrawDetector.canClaimFiftyMovesAfter(board, intendedMove.orElseThrow().move())) {
             output.println("Draw claimed under the fifty-move rule with intended move " + intended + ".");
             return;
           }
@@ -131,12 +132,12 @@ public final class ConsoleGame {
           output.println("Invalid format. Example: e2e4; promotion: e7e8q.");
           continue;
         }
-        var move = MoveNotation.find(command, legalMoves);
+        var move = MoveNotation.findLegalMove(command, legalMoves);
         if (move.isEmpty()) {
           output.println("Illegal move. Check the position and specify q, r, b or n for a promotion.");
           continue;
         }
-        board.makeMove(move.orElseThrow());
+        move.orElseThrow().play();
       } else {
         output.println("Viktor is thinking...");
         SearchResult result;
@@ -158,7 +159,8 @@ public final class ConsoleGame {
           var intendedMove = result.drawClaim().orElseThrow().intendedMove();
           if (intendedMove.isPresent()) {
             Move intended = intendedMove.orElseThrow();
-            if (!legalMoves.contains(intended) || !DrawDetector.canClaimFiftyMovesAfter(board, intended)) {
+            if (legalMoves.stream().noneMatch(legal -> legal.move().equals(intended))
+                || !DrawDetector.canClaimFiftyMovesAfter(board, intended)) {
               throw new IllegalStateException("The engine returned an invalid draw claim");
             }
             output.println("Viktor claims a fifty-move draw with intended move " + MoveNotation.format(intended) + ".");
@@ -176,7 +178,7 @@ public final class ConsoleGame {
             .orElseThrow(() -> new IllegalStateException("The engine returned no move in a non-terminal position"));
         reportDecision(output, side, legalMoves.size(), inCheck, "search",
             MoveNotation.format(move), result, start, "");
-        board.makeMove(move);
+        new LegalMove(board, move).play();
         output.println("Viktor plays: " + MoveNotation.format(move) + " (depth " + result.depth() + ")");
       }
       output.println(board);

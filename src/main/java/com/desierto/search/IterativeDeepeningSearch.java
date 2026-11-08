@@ -8,31 +8,34 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
-public final class IterativeDeepeningEngine implements SearchEngine {
+/**
+ * Searches at increasing depths, retaining the last completed decision.
+ */
+public final class IterativeDeepeningSearch implements SearchAlgorithm {
 
-  private final FixedDepthAlphaBetaEngine engine;
+  private final AlphaBetaSearch search;
   private final LongSupplier nanoTime;
 
-  public IterativeDeepeningEngine() {
-    this(new FixedDepthAlphaBetaEngine(), System::nanoTime);
+  public IterativeDeepeningSearch() {
+    this(new AlphaBetaSearch(), System::nanoTime);
   }
 
-  public IterativeDeepeningEngine(boolean quiescenceEnabled) {
-    this(new FixedDepthAlphaBetaEngine(quiescenceEnabled), System::nanoTime);
+  public IterativeDeepeningSearch(boolean quiescenceEnabled) {
+    this(new AlphaBetaSearch(quiescenceEnabled), System::nanoTime);
   }
 
-  public IterativeDeepeningEngine(boolean quiescenceEnabled, boolean transpositionsEnabled) {
-    this(new FixedDepthAlphaBetaEngine(quiescenceEnabled, transpositionsEnabled), System::nanoTime);
+  public IterativeDeepeningSearch(boolean quiescenceEnabled, boolean transpositionsEnabled) {
+    this(new AlphaBetaSearch(quiescenceEnabled, transpositionsEnabled), System::nanoTime);
   }
 
-  IterativeDeepeningEngine(FixedDepthAlphaBetaEngine engine, LongSupplier nanoTime) {
-    this.engine = Objects.requireNonNull(engine, "engine must not be null");
+  IterativeDeepeningSearch(AlphaBetaSearch search, LongSupplier nanoTime) {
+    this.search = Objects.requireNonNull(search, "engine must not be null");
     this.nanoTime = Objects.requireNonNull(nanoTime, "nanoTime must not be null");
   }
 
   @Override
   public SearchResult findBestMove(Board board, SearchLimits limits) {
-    return search(board, limits, new FixedDepthAlphaBetaEngine.SearchContext(), result -> {});
+    return searchIteratively(board, limits, new AlphaBetaSearch.SearchContext(), result -> {});
   }
 
   /**
@@ -43,7 +46,8 @@ public final class IterativeDeepeningEngine implements SearchEngine {
       Consumer<SearchResult> onIteration) {
     Objects.requireNonNull(cancelled, "cancelled must not be null");
     Objects.requireNonNull(onIteration, "onIteration must not be null");
-    return search(board, limits, new FixedDepthAlphaBetaEngine.SearchContext(cancelled), onIteration);
+    return searchIteratively(board, limits, new AlphaBetaSearch.SearchContext(cancelled),
+        onIteration);
   }
 
   /**
@@ -66,20 +70,20 @@ public final class IterativeDeepeningEngine implements SearchEngine {
       throw new IllegalArgumentException("timeLimit must be positive");
     }
     long start = nanoTime.getAsLong();
-    return search(board, limits, new FixedDepthAlphaBetaEngine.SearchContext(
+    return searchIteratively(board, limits, new AlphaBetaSearch.SearchContext(
         () -> nanoTime.getAsLong() - start >= limitNanos), result -> {});
   }
 
-  private SearchResult search(Board board, SearchLimits limits,
-      FixedDepthAlphaBetaEngine.SearchContext context, Consumer<SearchResult> onIteration) {
+  private SearchResult searchIteratively(Board board, SearchLimits limits,
+      AlphaBetaSearch.SearchContext context, Consumer<SearchResult> onIteration) {
     Objects.requireNonNull(board, "board must not be null");
     Objects.requireNonNull(limits, "limits must not be null");
     SearchResult completed = null;
     Optional<MoveKey> preferredMove = Optional.empty();
     for (int depth = 1; ; depth++) {
       try {
-        completed = engine.findBestMove(board, new SearchLimits(depth), preferredMove, context);
-      } catch (FixedDepthAlphaBetaEngine.SearchDeadlineExceeded ex) {
+        completed = search.findBestMove(board, new SearchLimits(depth), preferredMove, context);
+      } catch (AlphaBetaSearch.SearchDeadlineExceeded ex) {
         if (completed == null) {
           throw new SearchTimeoutException();
         }

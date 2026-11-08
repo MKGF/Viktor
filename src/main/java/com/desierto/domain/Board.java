@@ -19,10 +19,7 @@ public class Board {
   private final RepetitionHistory repetitionHistory;
   private Move lastMove;
   private Color sideToMove;
-  private boolean whiteKingsideCastleRight;
-  private boolean whiteQueensideCastleRight;
-  private boolean blackKingsideCastleRight;
-  private boolean blackQueensideCastleRight;
+  private CastlingRights castlingRights;
   private Cell enPassantTarget;
   private int halfmoveClock;
   private int fullmoveNumber;
@@ -34,10 +31,7 @@ public class Board {
     this.history = new PositionHistory();
     this.repetitionHistory = new RepetitionHistory();
     this.sideToMove = Color.WHITE;
-    this.whiteKingsideCastleRight = true;
-    this.whiteQueensideCastleRight = true;
-    this.blackKingsideCastleRight = true;
-    this.blackQueensideCastleRight = true;
+    this.castlingRights = CastlingRights.INITIAL;
     this.enPassantTarget = null;
     this.halfmoveClock = 0;
     this.fullmoveNumber = 1;
@@ -54,10 +48,7 @@ public class Board {
   public Board copy() {
     Board copy = new Board();
     copy.sideToMove = sideToMove;
-    copy.whiteKingsideCastleRight = whiteKingsideCastleRight;
-    copy.whiteQueensideCastleRight = whiteQueensideCastleRight;
-    copy.blackKingsideCastleRight = blackKingsideCastleRight;
-    copy.blackQueensideCastleRight = blackQueensideCastleRight;
+    copy.castlingRights = castlingRights;
     copy.enPassantTarget = enPassantTarget;
     copy.halfmoveClock = halfmoveClock;
     copy.fullmoveNumber = fullmoveNumber;
@@ -108,15 +99,10 @@ public class Board {
     advancePositionVersion();
   }
 
-  void configurePosition(Color sideToMove, boolean whiteKingsideCastleRight,
-      boolean whiteQueensideCastleRight, boolean blackKingsideCastleRight,
-      boolean blackQueensideCastleRight, Cell enPassantTarget, int halfmoveClock,
-      int fullmoveNumber) {
+  void configurePosition(Color sideToMove, CastlingRights castlingRights, Cell enPassantTarget,
+      int halfmoveClock, int fullmoveNumber) {
     this.sideToMove = Objects.requireNonNull(sideToMove, "sideToMove must not be null");
-    this.whiteKingsideCastleRight = whiteKingsideCastleRight;
-    this.whiteQueensideCastleRight = whiteQueensideCastleRight;
-    this.blackKingsideCastleRight = blackKingsideCastleRight;
-    this.blackQueensideCastleRight = blackQueensideCastleRight;
+    this.castlingRights = Objects.requireNonNull(castlingRights, "castlingRights must not be null");
     this.enPassantTarget = enPassantTarget;
     if (halfmoveClock < 0) {
       throw new IllegalArgumentException("halfmoveClock must not be negative");
@@ -139,16 +125,29 @@ public class Board {
     return Optional.ofNullable(piece);
   }
 
+  /** Validates a raw move for compatibility; new callers can play a generated LegalMove. */
   public void makeMove(Move move) {
-    Objects.requireNonNull(move, "move must not be null");
-    validateLegalMove(move);
+    new LegalMove(this, move).play();
+  }
+
+  void applyLegalMove(LegalMove legalMove) {
+    legalMove.validateSource(this);
+    Move move = legalMove.move();
     RepetitionPosition previous = RepetitionPosition.of(this);
-    history.save(copy());
+    Board snapshot = copy();
+    try (MoveTransaction transaction = beginMove(move)) {
+      addRepetitionPosition(previous, move);
+      history.save(snapshot);
+      transaction.commit();
+    }
+  }
+
+  MoveTransaction beginMove(Move move) {
+    UndoState state = makeTemporaryMove(move);
     try {
-      applyMoveInternal(move);
-      repetitionHistory.add(previous, isIrreversible(move));
-    } catch (RuntimeException ex) {
-      history.restore();
+      return new MoveTransaction(state);
+    } catch (RuntimeException | Error ex) {
+      restoreTemporaryMove(state);
       throw ex;
     }
   }
@@ -172,8 +171,8 @@ public class Board {
     }
     UndoState state = new UndoState(move.from(), move.to(), pieceAt(move.from()), pieceAt(move.to()),
         extraFrom, pieceAt(extraFrom), extraTo, pieceAt(extraTo), lastMove, sideToMove,
-        whiteKingsideCastleRight, whiteQueensideCastleRight, blackKingsideCastleRight,
-        blackQueensideCastleRight, enPassantTarget, halfmoveClock, fullmoveNumber, positionVersion);
+        castlingRights, enPassantTarget, halfmoveClock, fullmoveNumber, positionVersion,
+        repetitionHistory.checkpoint());
     try {
       applyGeneratedMove(move);
     } catch (RuntimeException | Error ex) {
@@ -190,14 +189,12 @@ public class Board {
     setPiece(state.extraTo(), state.extraToPiece());
     lastMove = state.lastMove();
     sideToMove = state.sideToMove();
-    whiteKingsideCastleRight = state.whiteKingsideCastleRight();
-    whiteQueensideCastleRight = state.whiteQueensideCastleRight();
-    blackKingsideCastleRight = state.blackKingsideCastleRight();
-    blackQueensideCastleRight = state.blackQueensideCastleRight();
+    castlingRights = state.castlingRights();
     enPassantTarget = state.enPassantTarget();
     halfmoveClock = state.halfmoveClock();
     fullmoveNumber = state.fullmoveNumber();
     positionVersion = state.positionVersion();
+    repetitionHistory.restore(state.repetitionCheckpoint());
   }
 
   private Piece pieceAt(Cell cell) {
@@ -216,10 +213,37 @@ public class Board {
 
   record UndoState(Cell from, Cell to, Piece fromPiece, Piece toPiece, Cell extraFrom,
                    Piece extraFromPiece, Cell extraTo, Piece extraToPiece, Move lastMove,
-                   Color sideToMove, boolean whiteKingsideCastleRight,
-                   boolean whiteQueensideCastleRight, boolean blackKingsideCastleRight,
-                   boolean blackQueensideCastleRight, Cell enPassantTarget, int halfmoveClock,
-                   int fullmoveNumber, long positionVersion) {
+                   Color sideToMove, CastlingRights castlingRights, Cell enPassantTarget,
+                   int halfmoveClock, int fullmoveNumber, long positionVersion,
+                   RepetitionHistory.Node repetitionCheckpoint) {
+  }
+
+  final class MoveTransaction implements AutoCloseable {
+    private final UndoState state;
+    private boolean committed;
+    private boolean closed;
+
+    private MoveTransaction(UndoState state) {
+      this.state = state;
+    }
+
+    void commit() {
+      if (closed) {
+        throw new IllegalStateException("Move transaction is already closed");
+      }
+      committed = true;
+    }
+
+    @Override
+    public void close() {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      if (!committed) {
+        restoreTemporaryMove(state);
+      }
+    }
   }
 
   boolean isAtVersion(long version) {
@@ -245,16 +269,8 @@ public class Board {
     return RepetitionPosition.of(this);
   }
 
-  RepetitionHistory.Node repetitionCheckpoint() {
-    return repetitionHistory.checkpoint();
-  }
-
   void addRepetitionPosition(RepetitionPosition position, Move move) {
     repetitionHistory.add(position, isIrreversible(move));
-  }
-
-  void restoreRepetitionCheckpoint(RepetitionHistory.Node checkpoint) {
-    repetitionHistory.restore(checkpoint);
   }
 
   private static boolean isIrreversible(Move move) {
@@ -274,19 +290,19 @@ public class Board {
   }
 
   public boolean canWhiteCastleKingside() {
-    return whiteKingsideCastleRight;
+    return castlingRights.whiteKingside();
   }
 
   public boolean canWhiteCastleQueenside() {
-    return whiteQueensideCastleRight;
+    return castlingRights.whiteQueenside();
   }
 
   public boolean canBlackCastleKingside() {
-    return blackKingsideCastleRight;
+    return castlingRights.blackKingside();
   }
 
   public boolean canBlackCastleQueenside() {
-    return blackQueensideCastleRight;
+    return castlingRights.blackQueenside();
   }
 
   public Optional<Cell> getEnPassantTarget() {
@@ -323,35 +339,6 @@ public class Board {
       default -> throw new IllegalStateException("Unexpected move type: " + move.type());
     }
     advancePositionVersion();
-  }
-
-  private void validateLegalMove(Move move) {
-    if (move.color() != sideToMove) {
-      throw new IllegalArgumentException("Move color must match the side to move");
-    }
-    boolean legalMove = new MoveGenerator().generateLegalMoves(this, sideToMove).stream()
-        .anyMatch(candidate -> representsSameMove(move, candidate));
-    if (!legalMove) {
-      throw new IllegalArgumentException("Move is not legal in the current position");
-    }
-  }
-
-  private boolean representsSameMove(Move requested, Move candidate) {
-    return requested.color() == candidate.color()
-        && requested.from().equals(candidate.from())
-        && requested.to().equals(candidate.to())
-        && requested.type() == candidate.type()
-        && representsSamePiece(requested.piece(), candidate.piece())
-        && representsSamePiece(requested.promotionPiece(), candidate.promotionPiece())
-        && representsSamePiece(requested.capturedPiece(), candidate.capturedPiece());
-  }
-
-  private boolean representsSamePiece(Piece requested, Piece candidate) {
-    if (requested == null || candidate == null) {
-      return requested == candidate;
-    }
-    return requested.getClass() == candidate.getClass()
-        && requested.getColor() == candidate.getColor();
   }
 
   public List<Piece> getPieces() {
@@ -402,10 +389,7 @@ public class Board {
     }
     lastMove = snapshot.lastMove;
     sideToMove = snapshot.sideToMove;
-    whiteKingsideCastleRight = snapshot.whiteKingsideCastleRight;
-    whiteQueensideCastleRight = snapshot.whiteQueensideCastleRight;
-    blackKingsideCastleRight = snapshot.blackKingsideCastleRight;
-    blackQueensideCastleRight = snapshot.blackQueensideCastleRight;
+    castlingRights = snapshot.castlingRights;
     enPassantTarget = snapshot.enPassantTarget;
     halfmoveClock = snapshot.halfmoveClock;
     fullmoveNumber = snapshot.fullmoveNumber;
@@ -502,35 +486,13 @@ public class Board {
 
   private void updateCastlingRights(Piece movedPiece, Cell from, Cell to, Piece capturedPiece) {
     if (movedPiece instanceof King) {
-      if (movedPiece.getColor() == Color.WHITE) {
-        whiteKingsideCastleRight = false;
-        whiteQueensideCastleRight = false;
-      } else {
-        blackKingsideCastleRight = false;
-        blackQueensideCastleRight = false;
-      }
+      castlingRights = castlingRights.afterKingMoves(movedPiece.getColor());
     }
     if (movedPiece instanceof Rook) {
-      if (from.equals(Cell.A1)) {
-        whiteQueensideCastleRight = false;
-      } else if (from.equals(Cell.H1)) {
-        whiteKingsideCastleRight = false;
-      } else if (from.equals(Cell.A8)) {
-        blackQueensideCastleRight = false;
-      } else if (from.equals(Cell.H8)) {
-        blackKingsideCastleRight = false;
-      }
+      castlingRights = castlingRights.afterRookMoves(from);
     }
     if (capturedPiece instanceof Rook) {
-      if (to.equals(Cell.A1)) {
-        whiteQueensideCastleRight = false;
-      } else if (to.equals(Cell.H1)) {
-        whiteKingsideCastleRight = false;
-      } else if (to.equals(Cell.A8)) {
-        blackQueensideCastleRight = false;
-      } else if (to.equals(Cell.H8)) {
-        blackKingsideCastleRight = false;
-      }
+      castlingRights = castlingRights.afterRookIsCaptured(to);
     }
   }
 
