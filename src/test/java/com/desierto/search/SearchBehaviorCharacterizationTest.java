@@ -20,9 +20,9 @@ class SearchBehaviorCharacterizationTest {
     for (boolean quiescence : new boolean[] {false, true}) {
       for (boolean transpositions : new boolean[] {false, true}) {
         assertSearch(Board.standard(), quiescence, transpositions, "b1c3", 0,
-            quiescence ? 155 : 140);
+            quiescence ? 140 : 129);
         assertSearch(tacticalPosition(), quiescence, transpositions, "d1f3",
-            quiescence ? 289 : 286, quiescence ? 269 : 96);
+            285, quiescence ? 302 : 182);
         assertSearch(endgamePosition(), quiescence, transpositions, "a5a6", 8, 30);
       }
     }

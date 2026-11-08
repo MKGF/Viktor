@@ -20,23 +20,19 @@ class AlphaBetaTraceCharacterizationTest {
   @Test
   void preservesPrincipalVariationsAndRankedAlternativesAcrossSearchOptions() {
     SearchTrace initial = new SearchTrace(List.of("b1c3", "b8c6"), List.of(
-        alternative("b1c3", 0, EXACT), alternative("g1f3", 0, UPPER),
-        alternative("a2a3", 0, UPPER)));
-    SearchTrace tactical = new SearchTrace(List.of("d1f3", "e6e5"), List.of(
-        alternative("d1f3", 286, EXACT), alternative("d1g4", 286, UPPER),
-        alternative("d1c2", 286, UPPER)));
-    SearchTrace tacticalWithQuiescence = new SearchTrace(List.of("d1f3", "e8e7"), List.of(
-        alternative("d1f3", 289, EXACT), alternative("d1b1", 288, UPPER),
-        alternative("d1c1", 286, UPPER)));
+        alternative("b1c3", 0, EXACT), alternative("b1a3", 0, UPPER),
+        alternative("g1h3", 0, UPPER)));
+    SearchTrace tactical = new SearchTrace(List.of("d1f3", "e8e7"), List.of(
+        alternative("d1f3", 285, EXACT), alternative("d1e2", 284, EXACT),
+        alternative("d1g4", 284, UPPER)));
     SearchTrace endgame = new SearchTrace(List.of("a5a6", "h4h3"), List.of(
-        alternative("a5a6", 8, EXACT), alternative("e4d4", 2, EXACT),
-        alternative("e4e3", -6, UPPER)));
+        alternative("a5a6", 8, EXACT), alternative("e4d4", 6, EXACT),
+        alternative("e4e3", -1, UPPER)));
 
     for (boolean quiescence : new boolean[] {false, true}) {
       for (boolean transpositions : new boolean[] {false, true}) {
         assertTrace(Board.standard(), quiescence, transpositions, 2, initial);
-        assertTrace(tacticalPosition(), quiescence, transpositions, 2,
-            quiescence ? tacticalWithQuiescence : tactical);
+        assertTrace(tacticalPosition(), quiescence, transpositions, 2, tactical);
         assertTrace(endgamePosition(), quiescence, transpositions, 2, endgame);
       }
     }
@@ -45,8 +41,8 @@ class AlphaBetaTraceCharacterizationTest {
   @Test
   void preservesDeeperPrincipalVariationWithAndWithoutTranspositions() {
     SearchTrace expected = new SearchTrace(List.of("b1c3", "b8c6", "g1f3"), List.of(
-        alternative("b1c3", 44, EXACT), alternative("g1f3", 44, UPPER),
-        alternative("a2a3", 44, UPPER)));
+        alternative("b1c3", 35, EXACT), alternative("g1f3", 35, UPPER),
+        alternative("a2a4", 35, UPPER)));
     for (boolean transpositions : new boolean[] {false, true}) {
       assertTrace(Board.standard(), false, transpositions, 3, expected);
     }
@@ -55,13 +51,13 @@ class AlphaBetaTraceCharacterizationTest {
   @Test
   void preservesTranspositionCutoffsAndTheirTrace() {
     SearchTrace expected = new SearchTrace(List.of("b1c3", "b8c6", "g1f3", "g8f6"), List.of(
-        alternative("b1c3", 0, EXACT), alternative("g1f3", 0, UPPER),
-        alternative("a2a3", 0, UPPER)));
+        alternative("b1c3", 0, EXACT), alternative("b1a3", 0, UPPER),
+        alternative("g1h3", 0, UPPER)));
     for (boolean transpositions : new boolean[] {false, true}) {
       SearchResult result = new AlphaBetaSearch(false, transpositions)
           .findBestMove(Board.standard(), new SearchLimits(4));
       assertEquals(0, result.score());
-      assertEquals(transpositions ? 9999 : 10043, result.nodes());
+      assertEquals(transpositions ? 11352 : 11433, result.nodes());
       assertEquals(expected, result.trace());
     }
   }

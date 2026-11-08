@@ -10,17 +10,6 @@ import java.util.Objects;
 
 final class AttackDetector {
 
-  private static final int[][] BISHOP_DIRECTIONS = {
-      {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
-  };
-  private static final int[][] ROOK_DIRECTIONS = {
-      {1, 0}, {-1, 0}, {0, 1}, {0, -1}
-  };
-  private static final int[][] QUEEN_DIRECTIONS = {
-      {1, 1}, {1, -1}, {-1, 1}, {-1, -1},
-      {1, 0}, {-1, 0}, {0, 1}, {0, -1}
-  };
-
   boolean isKingInCheck(Board board, Color color) {
     Objects.requireNonNull(board, "board must not be null");
     Objects.requireNonNull(color, "color must not be null");
@@ -38,7 +27,10 @@ final class AttackDetector {
     return false;
   }
 
-  private boolean attacks(Board board, Piece piece, Cell target) {
+  boolean attacks(Board board, Piece piece, Cell target) {
+    if (piece.getCell().equals(target)) {
+      return false;
+    }
     if (piece instanceof Pawn pawn) {
       int direction = pawn.getColor() == Color.WHITE ? 1 : -1;
       return target.row() == pawn.getCell().row() + direction
@@ -51,13 +43,13 @@ final class AttackDetector {
           || (rowDifference == 1 && columnDifference == 2);
     }
     if (piece instanceof Bishop bishop) {
-      return attacksAlongRay(board, bishop.getCell(), target, BISHOP_DIRECTIONS);
+      return attacksAlongRay(board, bishop.getCell(), target, true, false);
     }
     if (piece instanceof Rook rook) {
-      return attacksAlongRay(board, rook.getCell(), target, ROOK_DIRECTIONS);
+      return attacksAlongRay(board, rook.getCell(), target, false, true);
     }
     if (piece instanceof Queen queen) {
-      return attacksAlongRay(board, queen.getCell(), target, QUEEN_DIRECTIONS);
+      return attacksAlongRay(board, queen.getCell(), target, true, true);
     }
     if (piece instanceof King king) {
       int rowDifference = Math.abs(target.row() - king.getCell().row());
@@ -67,23 +59,26 @@ final class AttackDetector {
     throw new IllegalArgumentException("Unknown piece type");
   }
 
-  private boolean attacksAlongRay(Board board, Cell from, Cell target, int[][] directions) {
-    for (int[] direction : directions) {
-      int row = from.row() + direction[0];
-      int column = from.column() + direction[1];
-      while (isInside(row, column)) {
-        Cell current = Cell.of(row, column);
-        if (current.equals(target)) {
-          return true;
-        }
-        if (board.isOccupied(current)) {
-          break;
-        }
-        row += direction[0];
-        column += direction[1];
-      }
+  private boolean attacksAlongRay(Board board, Cell from, Cell target,
+      boolean diagonal, boolean straight) {
+    int rows = target.row() - from.row();
+    int columns = target.column() - from.column();
+    if (!(diagonal && Math.abs(rows) == Math.abs(columns))
+        && !(straight && (rows == 0 || columns == 0))) {
+      return false;
     }
-    return false;
+    int rowStep = Integer.signum(rows);
+    int columnStep = Integer.signum(columns);
+    int row = from.row() + rowStep;
+    int column = from.column() + columnStep;
+    while (row != target.row() || column != target.column()) {
+      if (board.isOccupied(Cell.of(row, column))) {
+        return false;
+      }
+      row += rowStep;
+      column += columnStep;
+    }
+    return true;
   }
 
   private Cell findKing(Board board, Color color) {
@@ -95,7 +90,4 @@ final class AttackDetector {
     return null;
   }
 
-  private boolean isInside(int row, int column) {
-    return row >= 0 && row < 8 && column >= 0 && column < 8;
-  }
 }
