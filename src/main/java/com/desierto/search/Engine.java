@@ -55,6 +55,34 @@ public final class Engine {
   }
 
   /**
+   * Uses a soft, position-dependent budget in addition to the caller's hard cancellation.
+   * The caller must enforce the hard deadline through {@code cancelled}.
+   */
+  public SearchResult thinkManaged(Board board, SearchLimits limits, BooleanSupplier cancelled,
+      Consumer<SearchResult> onIteration, Duration budget) {
+    long nanos;
+    try {
+      nanos = budget.toNanos();
+    } catch (ArithmeticException ex) {
+      throw new IllegalArgumentException("budget is too large", ex);
+    }
+    return search.findBestMoveManaged(board, limits, cancelled, onIteration, nanos);
+  }
+
+  public SearchResult thinkManaged(Board board, SearchLimits limits, Duration budget) {
+    long nanos;
+    try {
+      nanos = budget.toNanos();
+    } catch (ArithmeticException ex) {
+      throw new IllegalArgumentException("budget is too large", ex);
+    }
+    if (nanos <= 0) throw new IllegalArgumentException("budget must be positive");
+    long start = System.nanoTime();
+    return search.findBestMoveManaged(board, limits, () -> System.nanoTime() - start >= nanos,
+        result -> {}, nanos);
+  }
+
+  /**
    * Returns the last completed iteration. Nodes include any interrupted iteration.
    * The deadline is checked between search operations, not during an operation.
    *

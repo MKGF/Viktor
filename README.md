@@ -80,7 +80,8 @@ java -cp "target\classes;target\dependency\*" com.desierto.Viktor --black --dept
 whole numbers. The time limit may be at most 9223372036 seconds. Viktor searches progressively
 deeper positions and plays the best move from the last completed depth when the time expires;
 it may finish earlier if it reaches the maximum depth. The actual depth is displayed with its
-move. The deadline is checked between search operations, so it is not a strict real-time limit.
+move. Timed console searches also use the conservative managed-time policy described below.
+The deadline is checked between search operations, so it is not a strict real-time limit.
 If the first depth cannot be completed in time, Viktor reports the timeout and ends the game;
 restart with a higher time limit. Use `--help` to see the startup options.
 
@@ -240,6 +241,17 @@ new games, `position startpos` and six-field `position fen` with subsequent move
 64. Search information includes the completed depth, score, nodes and root move. Pondering,
 `searchmoves`, node limits and other UCI options are not implemented; do not select those
 settings in the GUI.
+
+For UCI clock-based searches and timed console searches, Viktor can stop after a completed
+iteration when there is only one legal move. With at most 12 legal moves, no check, captures or
+promotions, it uses a soft deadline of 75% of the allotted time after at least two completed
+depths, returning the last completed depth if it interrupts the next iteration. In those quiet
+positions it may also stop after at least half the time and depth four
+if the same move has remained best for three consecutive iterations, adjacent scores differ by
+at most 25 centipawns, and it leads the next alternative by at least 100 centipawns. These are
+heuristics and can reduce playing strength. They are disabled when a fifty-move draw claim is
+available. The original time limit remains the hard search deadline; a running search operation
+can overrun it. UCI `movetime`, depth-only and infinite searches do not use these heuristics.
 
 UCI has no standard command for an engine to claim a draw. If Viktor detects an automatic
 draw or would claim the fifty-move rule while legal moves remain, it reports the situation in

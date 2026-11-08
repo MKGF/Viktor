@@ -48,7 +48,7 @@ public final class ConsoleGame {
 
   public ConsoleGame(Color humanColor, int depth, Duration timeLimit, OpeningBook book,
       SyzygyTablebase tablebase) {
-    this(Board.standard(), humanColor, new Engine(book, tablebase)::think,
+    this(Board.standard(), humanColor, new Engine(book, tablebase)::thinkManaged,
         new SearchLimits(depth), timeLimit);
   }
 

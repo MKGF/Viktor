@@ -29,6 +29,25 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class UciProtocolTest {
   @Test
+  void clockManagedSearchStopsOnForcedMoveButDepthSearchContinues() throws Exception {
+    String position = "position fen 7k/8/5K2/8/8/8/8/7R b - - 0 1";
+    try (Harness h = new Harness()) {
+      h.send(position + "\ngo wtime 30000 btime 30000\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("info depth 1 "));
+      assertFalse(output.contains("info depth 2 "));
+      assertTrue(output.contains("bestmove h8g8"));
+      h.send(position + "\ngo depth 2\n");
+      output = h.awaitCount("bestmove ", 2);
+      assertTrue(output.contains("info depth 2 "));
+      h.send(position + "\ngo depth 2 movetime 30000\n");
+      output = h.awaitCount("bestmove ", 3);
+      assertTrue(output.substring(output.lastIndexOf("bestmove ", output.lastIndexOf("bestmove ") - 1))
+          .contains("info depth 2 "));
+    }
+  }
+
+  @Test
   void usesDefaultBookAndCanDisableIt(@TempDir Path directory) throws Exception {
     DefaultResources defaults = DefaultResources.inDirectory(directory);
     Files.createDirectories(defaults.book().getParent());

@@ -201,6 +201,10 @@ public class Board {
     return cell == null ? null : squares[cell.row()][cell.column()];
   }
 
+  Piece pieceAt(int row, int column) {
+    return squares[row][column];
+  }
+
   private void setPiece(Cell cell, Piece piece) {
     if (cell != null) {
       squares[cell.row()][cell.column()] = piece;

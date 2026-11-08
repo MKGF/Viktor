@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -292,10 +293,17 @@ final class UciProtocol {
         inCheck = generator.isKingInCheck(position, position.getSideToMove());
         fallback = legalMoves.stream().findFirst();
         best = fallback;
-        result = new Engine(book, tablebase).think(position,
-            new SearchLimits(options.depth()),
-            () -> cancelled.get() || (timeNanos >= 0 && System.nanoTime() - start >= timeNanos),
-            iteration -> reportIteration(iteration, start));
+        Engine engine = new Engine(book, tablebase);
+        java.util.function.BooleanSupplier deadline =
+            () -> cancelled.get() || (timeNanos >= 0 && System.nanoTime() - start >= timeNanos);
+        long remaining = timeNanos < 0 ? -1 : timeNanos - (System.nanoTime() - start);
+        if (options.managedTime() && remaining > 0) {
+          result = engine.thinkManaged(position, new SearchLimits(options.depth()), deadline,
+              iteration -> reportIteration(iteration, start), Duration.ofNanos(remaining));
+        } else {
+          result = engine.think(position, new SearchLimits(options.depth()), deadline,
+              iteration -> reportIteration(iteration, start));
+        }
         if (result.bestMove().isPresent()) {
           reason = result.fromBook() ? "book" : result.tablebaseOutcome().isPresent() ? "tablebase" : "search";
           best = result.bestMove();

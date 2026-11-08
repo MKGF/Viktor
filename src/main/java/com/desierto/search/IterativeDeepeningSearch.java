@@ -50,6 +50,21 @@ public final class IterativeDeepeningSearch implements SearchAlgorithm {
         onIteration);
   }
 
+  SearchResult findBestMoveManaged(Board board, SearchLimits limits, BooleanSupplier cancelled,
+      Consumer<SearchResult> onIteration, long budgetNanos) {
+    Objects.requireNonNull(board, "board must not be null");
+    Objects.requireNonNull(limits, "limits must not be null");
+    Objects.requireNonNull(cancelled, "cancelled must not be null");
+    Objects.requireNonNull(onIteration, "onIteration must not be null");
+    if (budgetNanos <= 0) throw new IllegalArgumentException("budgetNanos must be positive");
+    long start = nanoTime.getAsLong();
+    if (cancelled.getAsBoolean()) throw new SearchTimeoutException();
+    ManagedSearchPolicy policy = new ManagedSearchPolicy(board, budgetNanos);
+    return searchIteratively(board, limits, new AlphaBetaSearch.SearchContext(
+            () -> cancelled.getAsBoolean() || policy.shouldCancel(nanoTime.getAsLong() - start)),
+        onIteration, result -> policy.shouldStop(result, nanoTime.getAsLong() - start));
+  }
+
   /**
    * Returns the last completed iteration. Nodes include any interrupted iteration.
    * The deadline is checked between search operations, not during an operation.
@@ -76,6 +91,12 @@ public final class IterativeDeepeningSearch implements SearchAlgorithm {
 
   private SearchResult searchIteratively(Board board, SearchLimits limits,
       AlphaBetaSearch.SearchContext context, Consumer<SearchResult> onIteration) {
+    return searchIteratively(board, limits, context, onIteration, result -> false);
+  }
+
+  private SearchResult searchIteratively(Board board, SearchLimits limits,
+      AlphaBetaSearch.SearchContext context, Consumer<SearchResult> onIteration,
+      java.util.function.Predicate<SearchResult> shouldStop) {
     Objects.requireNonNull(board, "board must not be null");
     Objects.requireNonNull(limits, "limits must not be null");
     SearchResult completed = null;
@@ -92,7 +113,7 @@ public final class IterativeDeepeningSearch implements SearchAlgorithm {
       }
       onIteration.accept(completed);
       if ((completed.bestMove().isEmpty() && completed.drawClaim().isEmpty())
-          || depth == limits.maxDepth()) {
+          || depth == limits.maxDepth() || shouldStop.test(completed)) {
         return completed;
       }
       preferredMove = completed.bestMove().map(MoveKey::from);

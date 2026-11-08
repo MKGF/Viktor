@@ -44,6 +44,22 @@ final class BookSearch {
     return result.orElseGet(() -> search.findBestMove(board, limits, cancelled, onIteration));
   }
 
+  SearchResult findBestMoveManaged(Board board, SearchLimits limits, BooleanSupplier cancelled,
+      Consumer<SearchResult> onIteration, long budgetNanos) {
+    Objects.requireNonNull(limits, "limits must not be null");
+    Objects.requireNonNull(cancelled, "cancelled must not be null");
+    Objects.requireNonNull(onIteration, "onIteration must not be null");
+    if (budgetNanos <= 0) throw new IllegalArgumentException("budgetNanos must be positive");
+    long start = System.nanoTime();
+    if (cancelled.getAsBoolean()) throw new SearchTimeoutException();
+    Optional<SearchResult> result = immediateResult(board);
+    if (cancelled.getAsBoolean()) throw new SearchTimeoutException();
+    if (result.isPresent()) return result.orElseThrow();
+    long remaining = budgetNanos - (System.nanoTime() - start);
+    if (remaining <= 0) throw new SearchTimeoutException();
+    return search.findBestMoveManaged(board, limits, cancelled, onIteration, remaining);
+  }
+
   SearchResult findBestMove(Board board, SearchLimits limits, Duration timeLimit) {
     Objects.requireNonNull(limits, "limits must not be null");
     Objects.requireNonNull(timeLimit, "timeLimit must not be null");

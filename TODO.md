@@ -108,6 +108,16 @@ integración UCI.
   se señalan como `timeout`; los nodos de una búsqueda iterativa incluyen la etapa interrumpida.
   Las mediciones dependen de la máquina y no son umbrales de test.
 
+- [x] Perfilar generación y búsqueda y optimizar la detección de ataques sin construir listas
+  de piezas para cada comprobación. En Windows, JDK 24.0.2, AMD Family 23 Model 113 y con
+  `SearchBenchmark 2 5 2 8 250`, la mediana táctica a profundidad 2 con quiescence y tabla
+  pasó de 9,223 a 5,848 ms, y la búsqueda iterativa táctica de 31.513 a 47.694 nodos/s.
+  Las 60 muestras a profundidad fija mantuvieron movimiento, puntuación, profundidad y nodos.
+  El perfil JFR separado (3 calentamientos, 8 muestras y 400 ms) señaló `Board.getPieces`
+  como primer método del proyecto en el 52 % de 3.926 muestras de ejecución, frecuentemente
+  durante comprobaciones de jaque. Es un perfil estadístico de varias posiciones y modos,
+  no una medición exacta de CPU; el JIT, la carga del equipo y el orden influyen en las cifras.
+
 - [x] Añadir transposition table con hashing Zobrist para reutilizar posiciones repetidas.
   La tabla tiene 65536 entradas y pertenece a una búsqueda, incluidas sus iteraciones. El hash
   cubre piezas, color, posición, indicador de movimiento, turno, enroque, casilla en passant y
