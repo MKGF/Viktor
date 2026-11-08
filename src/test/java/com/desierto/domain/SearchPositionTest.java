@@ -66,10 +66,10 @@ class SearchPositionTest {
     Snapshot initial = snapshot(working);
     LegalMove root = find(position, Cell.E2, Cell.E4);
     LegalMove abandoned;
-    try (SearchPosition.MoveScope rootScope = position.apply(root)) {
+    try (SearchPosition.MoveScope rootScope = position.exploreMove(root)) {
       Snapshot child = snapshot(working);
       abandoned = find(position, Cell.E7, Cell.E5);
-      try (SearchPosition.MoveScope childScope = position.apply(abandoned)) {
+      try (SearchPosition.MoveScope childScope = position.exploreMove(abandoned)) {
         assertNotEquals(child, snapshot(working));
       }
       assertEquals(child, snapshot(working));
@@ -78,9 +78,9 @@ class SearchPositionTest {
     assertEquals(initial, snapshot(source));
     assertThrows(IllegalStateException.class, abandoned::resultingPosition);
 
-    try (SearchPosition.MoveScope ignored = position.apply(root)) {
+    try (SearchPosition.MoveScope ignored = position.exploreMove(root)) {
       assertThrows(IllegalStateException.class, abandoned::resultingPosition);
-      assertThrows(IllegalStateException.class, () -> position.apply(abandoned));
+      assertThrows(IllegalStateException.class, () -> position.exploreMove(abandoned));
     }
     assertEquals(initial, snapshot(working));
   }
@@ -89,8 +89,8 @@ class SearchPositionTest {
   void shouldEnforceLifoScopesAndRestoreAfterExceptions() {
     SearchPosition position = new SearchPosition(Board.standard());
     Snapshot initial = snapshot(position.board());
-    SearchPosition.MoveScope first = position.apply(find(position, Cell.E2, Cell.E4));
-    SearchPosition.MoveScope second = position.apply(find(position, Cell.E7, Cell.E5));
+    SearchPosition.MoveScope first = position.exploreMove(find(position, Cell.E2, Cell.E4));
+    SearchPosition.MoveScope second = position.exploreMove(find(position, Cell.E7, Cell.E5));
     assertThrows(IllegalStateException.class, first::close);
     second.close();
     first.close();
@@ -98,7 +98,7 @@ class SearchPositionTest {
     assertEquals(initial, snapshot(position.board()));
 
     assertThrows(IllegalArgumentException.class, () -> {
-      try (SearchPosition.MoveScope ignored = position.apply(find(position, Cell.D2, Cell.D4))) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(find(position, Cell.D2, Cell.D4))) {
         throw new IllegalArgumentException("simulated failure");
       }
     });
@@ -220,7 +220,7 @@ class SearchPositionTest {
     long nodes = 0;
     Board board = position.board();
     for (LegalMove move : generator.generateLegalMoveApplications(board, board.getSideToMove())) {
-      try (SearchPosition.MoveScope ignored = position.apply(move)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(move)) {
         nodes += perft(position, depth - 1);
       }
     }

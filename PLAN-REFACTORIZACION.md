@@ -214,9 +214,14 @@ los tests existentes. Las búsquedas deterministas comparadas mantienen jugada, 
 profundidad y nodos. Las mediciones de tiempo muestran variaciones considerables entre
 ejecuciones; no permiten concluir si existe un cambio de rendimiento.
 
-Quedan como siguientes objetivos, aún sin abordar:
+Para distinguir las jugadas de la partida de las que se prueban durante la búsqueda,
+`Board.makeMove()` conserva su nombre y `SearchPosition.apply()` se ha renombrado a
+`exploreMove()`. Es un cambio de API: los consumidores de `apply()` deben usar el nuevo nombre.
+El scope sigue restaurando la posición y el historial de repetición al cerrarse.
 
-- Aclarar las dos formas de aplicar y deshacer jugadas.
+Quedan como siguientes objetivos:
+
+- Seguir aclarando las dos formas de aplicar y deshacer jugadas.
 - Hacer más legible la aplicación de jugadas especiales.
 - Simplificar la copia y restauración del estado.
 

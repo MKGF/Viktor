@@ -119,7 +119,7 @@ public final class AlphaBetaSearch implements SearchAlgorithm {
       Move move = legalMove.move();
       int score;
       int initialAlpha = alpha;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
         score = alphaBeta(position, depth - 1, perspective, 1, alpha, beta, context);
       }
       String notation = MoveNotation.format(move);
@@ -208,7 +208,7 @@ public final class AlphaBetaSearch implements SearchAlgorithm {
     alpha = Math.max(alpha, bestScore);
     for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
         score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
             context);
       }
@@ -231,7 +231,7 @@ public final class AlphaBetaSearch implements SearchAlgorithm {
     beta = Math.min(beta, bestScore);
     for (LegalMove legalMove : orderMoves(board, legalMoves, context)) {
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
         score = alphaBeta(position, remainingDepth - 1, perspective, plyFromRoot + 1, alpha, beta,
             context);
       }

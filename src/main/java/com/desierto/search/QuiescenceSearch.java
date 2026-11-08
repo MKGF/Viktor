@@ -112,7 +112,7 @@ final class QuiescenceSearch {
     context.checkTime();
     for (LegalMove move : orderedMoves) {
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(move)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(move)) {
         score = search(position, perspective, plyFromRoot + 1,
             quiescencePly + 1, alpha, beta, context);
       }

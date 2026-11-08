@@ -56,11 +56,11 @@ class CastlingRightsBehaviorTest {
       Board board = position.board();
       LegalMove capture = findLegalMove(board, Cell.A1, Cell.A8);
 
-      try (SearchPosition.MoveScope ignored = position.apply(capture)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(capture)) {
         int afterCapture = initialRights & ~(WHITE_QUEENSIDE | BLACK_QUEENSIDE);
         assertEquals(afterCapture, rights(board));
         LegalMove reply = findLegalMove(board, Cell.E8, Cell.E7);
-        try (SearchPosition.MoveScope replyScope = position.apply(reply)) {
+        try (SearchPosition.MoveScope replyScope = position.exploreMove(reply)) {
           assertEquals(afterCapture & ~(BLACK_KINGSIDE | BLACK_QUEENSIDE), rights(board));
         }
         assertEquals(afterCapture, rights(board));

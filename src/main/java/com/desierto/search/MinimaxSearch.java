@@ -54,7 +54,7 @@ public final class MinimaxSearch implements SearchAlgorithm {
     for (LegalMove legalMove : legalMoves) {
       Move move = legalMove.move();
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
         score = minimax(position, limits.maxDepth() - 1, perspective, 1, context);
       }
       if (score > bestScore) {
@@ -99,7 +99,7 @@ public final class MinimaxSearch implements SearchAlgorithm {
         ? 0 : maximizesScore ? Integer.MIN_VALUE : Integer.MAX_VALUE;
     for (LegalMove legalMove : legalMoves) {
       int score;
-      try (SearchPosition.MoveScope ignored = position.apply(legalMove)) {
+      try (SearchPosition.MoveScope ignored = position.exploreMove(legalMove)) {
         score = minimax(position, remainingDepth - 1, perspective, plyFromRoot + 1, context);
       }
       bestScore = maximizesScore ? Math.max(bestScore, score) : Math.min(bestScore, score);

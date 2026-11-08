@@ -25,7 +25,7 @@ public final class SearchPosition {
     return board;
   }
 
-  public MoveScope apply(LegalMove move) {
+  public MoveScope exploreMove(LegalMove move) {
     Objects.requireNonNull(move, "move must not be null").validateSource(board);
     RepetitionPosition previousPosition = board.repetitionPosition();
     RepetitionHistory.Node checkpoint = board.repetitionCheckpoint();
