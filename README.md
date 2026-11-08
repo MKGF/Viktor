@@ -15,6 +15,14 @@ The console interprets the decision and applies a move to its board. UCI communi
 response to the GUI, which controls the game. `MinimaxSearch` is an alternative used by
 tests, not by the production search path.
 
+An external Polyglot opening book, enabled by default, can select a legal move before searching. A book
+decision has `SearchResult.fromBook() == true`; its score, depth and nodes are zero placeholders,
+not a search evaluation. When no book move is available, Viktor searches normally.
+
+Local Syzygy tables, enabled by default, can select a move before the book or search. A tablebase decision
+has a `tablebaseOutcome()` with WDL and DTZ; its score, depth and nodes are placeholders rather
+than a search evaluation.
+
 The search classes and interface were renamed: callers of `FixedDepthAlphaBetaEngine`,
 `FixedDepthMinimaxEngine`, `IterativeDeepeningEngine` and `SearchEngine` must use
 `AlphaBetaSearch`, `MinimaxSearch`, `IterativeDeepeningSearch` and `SearchAlgorithm`,
@@ -35,21 +43,37 @@ validate the meaning of each part.
 
 ## Starting a game
 
-From the project root on Windows:
+Place the external resources in the project root before starting Viktor:
 
-```powershell
-mvn compile
-java -cp target\classes com.desierto.Viktor
+```text
+Viktor\
+  books\openings.bin
+  tablebases\KPvK.rtbw
+  tablebases\KPvK.rtbz
+  ... (the remaining three- and four-piece Syzygy files)
 ```
 
-You can also run the `main` method of `com.desierto.Viktor` from IntelliJ IDEA. To change the
-options, set the program arguments in the run configuration.
+They are not included in Git or downloaded by the build. See the sections below for their
+sources and requirements. With JDK 21 or later and Maven installed, build and start the console
+from the project root on Windows:
+
+```powershell
+mvn compile dependency:copy-dependencies "-DincludeScope=runtime"
+java -cp "target\classes;target\dependency\*" com.desierto.Viktor
+```
+
+Both resources are loaded automatically from those paths; no extra command-line options are
+needed. Missing or invalid resources produce warnings and Viktor continues with normal search.
+When running Java directly, the paths are relative to the **working directory**, not the class
+files; run from the project root. You can also run the `main` method of `com.desierto.Viktor`
+from IntelliJ IDEA with the project root as its working directory. To change the options, set
+the program arguments in the run configuration.
 
 By default, you play White and Viktor searches to a maximum depth of 3, with a limit of
 10 seconds per move. To play Black or change the depth and time limit:
 
 ```powershell
-java -cp target\classes com.desierto.Viktor --black --depth 15 --time 5
+java -cp "target\classes;target\dependency\*" com.desierto.Viktor --black --depth 15 --time 5
 ```
 
 `--black`, `--depth N` and `--time SECONDS` are independent. Depth and time must be positive
@@ -59,6 +83,60 @@ it may finish earlier if it reaches the maximum depth. The actual depth is displ
 move. The deadline is checked between search operations, so it is not a strict real-time limit.
 If the first depth cannot be completed in time, Viktor reports the timeout and ends the game;
 restart with a higher time limit. Use `--help` to see the startup options.
+
+To select another external, sorted Polyglot `.bin` opening book in the console:
+
+```powershell
+java -cp "target\classes;target\dependency\*" com.desierto.Viktor --black --book "C:\chess\book.bin"
+```
+
+Use `--no-book` to disable the book or `--no-tablebases` to disable the tablebases. `--book PATH`
+and `--tablebases PATH` override the default paths; when contradictory options for the same
+resource are supplied, the last one takes precedence.
+
+The book is not distributed with Viktor. Moves are chosen randomly in proportion
+to their positive Polyglot weights, after checking legality. Viktor skips the book when a draw
+claim might be available or the position is an automatic draw. The book is validated on load;
+an inaccessible or invalid file produces a warning and normal search remains available.
+
+For local use, `books\openings.bin` can be obtained by downloading `gm2001.bin` from the
+[Donna opening books collection](https://github.com/michaeldv/donna_opening_books) and renaming it.
+The collection describes it as Oliver Deville's book of grandmaster games from 2001–2013. This file is ignored
+by Git and is not distributed with Viktor; check its terms before redistributing it. Placed at
+`books\openings.bin` under the project root, it is used automatically by the console.
+
+## Local endgame tables
+
+Viktor can consult locally installed Syzygy WDL (`.rtbw`) and DTZ (`.rtbz`) files for
+three- and four-piece endings. The directory must contain the complete set of both types
+for those endings: 70 files, approximately 4.35 MB. They can be obtained from the
+[Lichess tablebase archive](https://tablebase.lichess.ovh/tables/standard/), in the
+`3-4-5-wdl` and `3-4-5-dtz` directories. Select only names with at most four pieces
+(count the piece letters on both sides of `v`); the archive provides file sizes in
+`bytes.tsv` and checksums in `sha256`. Verify downloaded files before use. The data is
+external, is not distributed with Viktor, and `tablebases\` is ignored by Git.
+
+To select a different local set from the project root:
+
+```powershell
+java -cp "target\classes;target\dependency\*" com.desierto.Viktor --tablebases "C:\chess\tablebases"
+```
+
+The default directory is `tablebases\` under the working directory in the console. Missing or
+unreadable files, invalid headers, or probe failures are reported as warnings and
+Viktor searches normally instead. Piazzolla maps table files for the lifetime of the probe;
+on Windows, restart the engine before replacing files that remain in use.
+
+For correctness with Viktor's repetition and draw-claim rules, the tablebase is currently
+used only when the halfmove clock is zero, no reversible position history is present, and
+there are no castling rights or en-passant target. Terminal and recognized dead positions are
+handled by the existing rules. Other positions use normal search, even if a table covers them.
+UCI FEN positions do not contain earlier game history. The `wdl` and `dtz` diagnostic values
+are from the side to move; DTZ is a distance to a zeroing move, in plies, and can be off by
+one, not a mate distance or centipawn evaluation.
+
+The ordinary test suite does not require table files. To include integration tests against
+an installed set, run `mvn "-Dviktor.syzygy.testPath=tablebases" test`.
 
 ## Playing
 
@@ -94,12 +172,18 @@ commands (`ayuda`, `salir`) remain available.
 ## Connecting a graphical chess interface
 
 Viktor also provides a separate UCI engine for graphical chess applications. On Windows,
-build a self-contained executable from the project root using PowerShell and a JDK 21 or later
+build a self-contained executable from the project root using PowerShell, Maven and a JDK 21 or later
 that includes `javac`, `jar` and `jpackage`:
 
 ```powershell
 .\build-uci.ps1
 ```
+
+The script copies `books\openings.bin` and the available three- and four-piece Syzygy files from
+the project root into the new application directory. It warns if the book is missing or the
+tablebase set is incomplete; the resulting engine still starts and falls back to search.
+It does not download the resources. Copying them into an application directory does **not**
+grant redistribution rights: check their terms before sharing that directory.
 
 The executable is `target\ViktorUCI-1.2.0\ViktorUCI-1.2.0.exe` for version 1.2.0. The
 script takes the version from `pom.xml`, so different versions can be kept side by side.
@@ -110,6 +194,36 @@ console greeting. Maven embeds the version during resource filtering. When runni
 from an IDE that does not filter resources, use the project root as the working directory so
 the engine can read the version from `pom.xml`. The console mode described above remains
 available separately.
+
+The packaged engine looks next to the executable, regardless of the GUI's working directory:
+
+```text
+ViktorUCI-1.2.0\
+  ViktorUCI-1.2.0.exe
+  books\openings.bin
+  tablebases\KPvK.rtbw
+  tablebases\KPvK.rtbz
+  ... (the remaining three- and four-piece Syzygy files)
+```
+
+Keep the application and its `books` and `tablebases` directories together when moving it.
+If the files were unavailable during the build, place them in those locations later and restart
+the engine. Both resources are enabled by default; the UCI handshake reports `OwnBook=true` and
+the default absolute `BookFile` and `SyzygyPath`. A GUI may override those settings.
+
+In a UCI GUI, use `OwnBook=false` to disable the book, or set `SyzygyPath` to `<empty>` to
+disable tablebases. `BookFile` and `SyzygyPath` can also be set to different paths, preferably
+absolute paths. For example:
+
+```text
+setoption name OwnBook value false
+setoption name SyzygyPath value <empty>
+```
+
+Changing either book option reloads the enabled book; changing `SyzygyPath` reloads the tables.
+Viktor reports loading or reading failures
+through `info string` and its log, then uses normal search. A book move is reported as
+`source=book` with no score; `go infinite` still waits for `stop`.
 
 For example, [Lucas Chess](https://lucaschess.pythonanywhere.com/downloads) supports external
 UCI engines:
@@ -180,6 +294,10 @@ decision:
   source=search
   selected_move=b1c3
   score=cp:44
+  reason=best_searched_score
+  static_perspective=white
+  static_material_delta=cp:0
+  static_positional_delta=cp:20
   score_perspective=white
   pv=b1c3 b8c6
   alternatives:
@@ -195,6 +313,15 @@ only an upper bound: the true score may be lower, so these moves are not necessa
 best remaining alternatives. The principal variation (`pv`) contains moves found by the
 search and can be shorter than the completed depth when the search reaches a terminal
 position, a draw claim, or a cached transposition. It does not include quiescence moves.
+
+`reason=opening_book` identifies a book move, without attributing it to a search or a score.
+`reason=best_searched_score` means the move was selected by search. For such moves,
+`static_material_delta` and `static_positional_delta` show the change immediately after the
+move, in centipawns from the moving side's perspective; a positive value favors that side.
+These are static measurements, not proof that material or position caused the selection.
+The search also considers later replies, tactics, and terminal results, and its score can differ
+from these immediate changes. Draw and fallback decisions instead report their existing source
+as the reason.
 
 The console also logs a `position` block initially and after each move. It shows the static
 evaluation, material and positional terms from White's perspective, regardless of whose turn

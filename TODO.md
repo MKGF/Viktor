@@ -86,8 +86,13 @@ integración UCI.
   al rey.
 - [x] Añadir pruebas de evaluación y selección de jugadas en aperturas y finales para ambos
   colores, conservando las pruebas tácticas y aceptando varias jugadas razonables.
-- [ ] Evaluar más adelante la incorporación opcional de un libro de aperturas como complemento
-  a la evaluación, no como sustituto de esta.
+- [x] Incorporar un libro de aperturas Polyglot externo y opcional antes de la búsqueda, con
+  validación de jugadas, selección ponderada y búsqueda normal cuando no hay una entrada válida.
+  Su configuración en consola y UCI se explica en `README.md`.
+- [x] Consultar opcionalmente bases Syzygy locales de tres y cuatro piezas en posiciones
+  compatibles con las reglas de tablas; las limitaciones y configuración están en `README.md`.
+- [ ] Ampliar la consulta de Syzygy a más posiciones sin comprometer las reclamaciones de tablas
+  ni la repetición, y valorar la cobertura de cinco o más piezas.
 
 ## 7. Rendimiento (etapa inicial completada)
 
@@ -166,7 +171,7 @@ integración UCI.
 ## Próximos pasos
 
 1. Afinar la evaluación posicional con posiciones adicionales y mediciones de calidad.
-2. Evaluar posteriormente un libro de aperturas opcional.
+2. Evaluar la calidad de juego de los libros de aperturas que se utilicen.
 
 Las mejoras de reglas, rendimiento y UCI pendientes anteriores siguen siendo opcionales y se
 abordarán cuando sean necesarias.

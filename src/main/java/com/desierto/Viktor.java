@@ -1,11 +1,15 @@
 package com.desierto;
 
 import com.desierto.console.ConsoleGame;
+import com.desierto.book.OpeningBook;
 import com.desierto.domain.Color;
+import com.desierto.tablebase.SyzygyTablebase;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.time.Duration;
 
 public final class Viktor {
@@ -17,13 +21,18 @@ public final class Viktor {
     Color humanColor = Color.WHITE;
     int depth = 3;
     Duration timeLimit = ConsoleGame.DEFAULT_TIME_LIMIT;
+    DefaultResources defaults = DefaultResources.locate();
+    Path bookPath = defaults.book();
+    Path tablebasePath = defaults.tablebases();
     for (int i = 0; i < args.length; i++) {
       switch (args[i]) {
         case "--help", "--ayuda" -> {
-          System.out.println("Usage: java -cp target\\classes com.desierto.Viktor [--black] [--depth N] [--time SECONDS]");
+          System.out.println("Usage: java -cp <classpath> com.desierto.Viktor [--black] [--depth N] [--time SECONDS] [--book PATH|--no-book] [--tablebases PATH|--no-tablebases]");
           return;
         }
         case "--black", "--negras" -> humanColor = Color.BLACK;
+        case "--no-book" -> bookPath = null;
+        case "--no-tablebases" -> tablebasePath = null;
         case "--depth", "--profundidad" -> {
           if (++i == args.length) {
             fail("Missing value for --depth.");
@@ -52,14 +61,54 @@ public final class Viktor {
             return;
           }
         }
+        case "--book" -> {
+          if (++i == args.length || args[i].isBlank()) {
+            fail("Missing value for --book.");
+            return;
+          }
+          try {
+            bookPath = Path.of(args[i]);
+          } catch (InvalidPathException ex) {
+            fail("Invalid path for --book: " + ex.getMessage());
+            return;
+          }
+        }
+        case "--tablebases" -> {
+          if (++i == args.length || args[i].isBlank()) {
+            fail("Missing value for --tablebases.");
+            return;
+          }
+          try {
+            tablebasePath = Path.of(args[i]);
+          } catch (InvalidPathException ex) {
+            fail("Invalid path for --tablebases: " + ex.getMessage());
+            return;
+          }
+        }
         default -> {
           fail("Unknown option: " + args[i]);
           return;
         }
       }
     }
+    OpeningBook book = null;
+    if (bookPath != null) {
+      try {
+        book = new OpeningBook(bookPath, message -> System.err.println("Warning: " + message));
+      } catch (IOException | SecurityException ex) {
+        System.err.println("Warning: cannot load opening book " + bookPath + ": " + ex.getMessage());
+      }
+    }
+    SyzygyTablebase tablebase = null;
+    if (tablebasePath != null) {
+      try {
+        tablebase = new SyzygyTablebase(tablebasePath, message -> System.err.println("Warning: " + message));
+      } catch (IOException | SecurityException ex) {
+        System.err.println("Warning: cannot load tablebases " + tablebasePath + ": " + ex.getMessage());
+      }
+    }
     BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
-    new ConsoleGame(humanColor, depth, timeLimit).run(input, System.out);
+    new ConsoleGame(humanColor, depth, timeLimit, book, tablebase).run(input, System.out);
   }
 
   static Duration parseTimeLimit(String value) {

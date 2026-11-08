@@ -1,6 +1,8 @@
 package com.desierto.search;
 
 import com.desierto.domain.Board;
+import com.desierto.book.OpeningBook;
+import com.desierto.tablebase.SyzygyTablebase;
 import java.time.Duration;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -12,22 +14,30 @@ import java.util.function.LongSupplier;
  */
 public final class Engine {
 
-  private final IterativeDeepeningSearch search;
+  private final BookSearch search;
 
   public Engine() {
-    this.search = new IterativeDeepeningSearch();
+    this.search = new BookSearch(new IterativeDeepeningSearch(), null);
+  }
+
+  public Engine(OpeningBook book) {
+    this.search = new BookSearch(new IterativeDeepeningSearch(), book);
+  }
+
+  public Engine(OpeningBook book, SyzygyTablebase tablebase) {
+    this.search = new BookSearch(new IterativeDeepeningSearch(), book, tablebase);
   }
 
   public Engine(boolean quiescenceEnabled) {
-    this.search = new IterativeDeepeningSearch(quiescenceEnabled);
+    this.search = new BookSearch(new IterativeDeepeningSearch(quiescenceEnabled), null);
   }
 
   public Engine(boolean quiescenceEnabled, boolean transpositionsEnabled) {
-    this.search = new IterativeDeepeningSearch(quiescenceEnabled, transpositionsEnabled);
+    this.search = new BookSearch(new IterativeDeepeningSearch(quiescenceEnabled, transpositionsEnabled), null);
   }
 
   Engine(AlphaBetaSearch search, LongSupplier nanoTime) {
-    this.search = new IterativeDeepeningSearch(search, nanoTime);
+    this.search = new BookSearch(new IterativeDeepeningSearch(search, nanoTime), null);
   }
 
   public SearchResult think(Board board, SearchLimits limits) {

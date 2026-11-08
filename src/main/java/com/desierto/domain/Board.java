@@ -260,6 +260,11 @@ public class Board {
         && repetitionHistory.containsTwice(RepetitionPosition.of(this));
   }
 
+  /** Whether previous reversible positions are available for repetition detection. */
+  public boolean hasRepetitionHistory() {
+    return !repetitionHistory.isEmpty();
+  }
+
   /** Returns a fingerprint of the previous-position counts for transposition caching. */
   public long repetitionHistoryFingerprint() {
     return repetitionHistory.fingerprint();
