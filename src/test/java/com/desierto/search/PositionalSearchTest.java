@@ -9,8 +9,11 @@ import com.desierto.domain.Color;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
+import com.desierto.domain.pieces.Bishop;
 import com.desierto.domain.pieces.King;
 import com.desierto.domain.pieces.Pawn;
+import com.desierto.domain.pieces.Queen;
+import com.desierto.domain.pieces.Rook;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +44,39 @@ class PositionalSearchTest {
         .build();
     assertReasonableMove(white, Set.of("a1a2", "a1b1", "a1b2"));
     assertReasonableMove(black, Set.of("a8a7", "a8b8", "a8b7"));
+  }
+
+  @Test
+  void searchFindsTheOpenRookFileForBothSides() {
+    for (Color color : Color.values()) {
+      Color opponent = color.opposite();
+      Cell king = mirror(Cell.C1, color);
+      Cell rook = mirror(Cell.F1, color);
+      Cell pawn = mirror(Cell.E4, color);
+      Cell blockingPawn = mirror(Cell.F2, color);
+      Cell bishop = mirror(Cell.G1, color);
+      Cell enemyKing = mirror(Cell.H8, color);
+      Cell enemyQueen = mirror(Cell.A8, color);
+      Board board = BoardFactory.position().sideToMove(color)
+          .castlingRights(false, false, false, false)
+          .place(new King(color, king), king)
+          .place(new Rook(color, rook), rook)
+          .place(new Pawn(color, pawn), pawn)
+          .place(new Pawn(color, blockingPawn), blockingPawn)
+          .place(new Bishop(color, bishop), bishop)
+          .place(new King(opponent, enemyKing), enemyKing)
+          .place(new Queen(opponent, enemyQueen), enemyQueen)
+          .build();
+      SearchResult result = new AlphaBetaSearch(false, false)
+          .findBestMove(board, new SearchLimits(1));
+      String expected = color == Color.WHITE ? "f1d1" : "f8d8";
+      assertTrue(result.bestMove().map(MoveNotation::format).orElse("").equals(expected),
+          color + ": " + result.trace());
+    }
+  }
+
+  private Cell mirror(Cell cell, Color color) {
+    return color == Color.WHITE ? cell : Cell.of(7 - cell.row(), cell.column());
   }
 
   private void assertReasonableMove(Board board, Set<String> reasonableMoves) {

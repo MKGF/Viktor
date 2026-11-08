@@ -145,6 +145,17 @@ public class MoveGenerator {
     return attackDetector.isKingInCheck(board, color);
   }
 
+  /** Tests geometric attacks, including attacks by pinned pieces and on friendly pieces. */
+  public boolean attacksSquare(Board board, Piece piece, Cell square) {
+    Objects.requireNonNull(board, "board must not be null");
+    Objects.requireNonNull(piece, "piece must not be null");
+    Objects.requireNonNull(square, "square must not be null");
+    if (board.getPieceAt(piece.getCell()).orElse(null) != piece) {
+      throw new IllegalArgumentException("Piece must be on the board");
+    }
+    return attackDetector.attacks(board, piece, square);
+  }
+
   public boolean isCheckmate(Board board, Color color) {
     Objects.requireNonNull(board, "board must not be null");
     Objects.requireNonNull(color, "color must not be null");

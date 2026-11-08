@@ -101,7 +101,7 @@ that includes `javac`, `jar` and `jpackage`:
 .\build-uci.ps1
 ```
 
-The executable is `target\ViktorUCI-1.1.1\ViktorUCI-1.1.1.exe` for version 1.1.1. The
+The executable is `target\ViktorUCI-1.2.0\ViktorUCI-1.2.0.exe` for version 1.2.0. The
 script takes the version from `pom.xml`, so different versions can be kept side by side.
 Keep the entire versioned directory together: it includes the Java runtime needed to launch
 the engine. The script does not overwrite an existing directory for the same version; move
@@ -115,7 +115,7 @@ For example, [Lucas Chess](https://lucaschess.pythonanywhere.com/downloads) supp
 UCI engines:
 
 1. Install or run Lucas Chess for Windows.
-2. Open **Engines → External engines → New** and select the versioned `ViktorUCI-1.1.1.exe`.
+2. Open **Engines → External engines → New** and select the versioned `ViktorUCI-1.2.0.exe`.
 3. Accept the engine details, then start a game against an engine and select Viktor from
    **External engines**. Choose your color and a fixed thinking time or depth.
 
@@ -137,12 +137,21 @@ earlier position.
 
 ## Position evaluation
 
-Viktor evaluates material and piece-square placement for both colors. It also favors developing
-knights and bishops and uses the king's position and nearby friendly pawns as a simple safety
-heuristic. These opening and middlegame terms gradually give way to a centralized king in the
-endgame as non-pawn material disappears. This is a heuristic, not a complete assessment of pawn
-structure, mobility or king attacks. Checkmate and recognized draws still take precedence over
-the positional score.
+Viktor evaluates material and piece-square placement for both colors. Each piece type has its
+own positional evaluator. Rooks gain a bonus for open or semi-open files, bishops consider
+opposing pawns on their square color and friendly pawns blocking their diagonals, and knights
+favor advanced outposts that opposing pawns cannot challenge, especially when supported by a
+friendly pawn and near opposing pawns. A small general pressure penalty distinguishes attacked
+pieces from defended ones. These are geometric attacks, not a guarantee of a legal or profitable
+capture.
+
+The influence of the non-king piece-square tables is estimated from the number of knights
+and bishops still on their starting squares: it ranges from full weight with eight undeveloped
+minors to one quarter with none. This is a position-based approximation, not a move counter;
+it can increase again if pieces return home. The contextual bonuses do not fade with that
+weight. King safety and the development penalty still fade with non-pawn material, and the
+king uses a separate endgame table. These heuristics do not fully assess pawn structure,
+mobility, threats or king attacks. Checkmate and recognized draws take precedence.
 
 ## Search diagnostics
 
@@ -213,5 +222,5 @@ To keep an existing Windows build while generating an updated executable in a se
 .\build-uci.ps1 -Destination target\uci-diagnostics
 ```
 
-In that case select `target\uci-diagnostics\ViktorUCI-1.1.1\ViktorUCI-1.1.1.exe` in the GUI
+In that case select `target\uci-diagnostics\ViktorUCI-1.2.0\ViktorUCI-1.2.0.exe` in the GUI
 and keep its entire versioned folder together.

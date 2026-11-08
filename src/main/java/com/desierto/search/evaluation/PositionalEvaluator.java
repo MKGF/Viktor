@@ -10,13 +10,19 @@ import com.desierto.domain.pieces.Knight;
 import com.desierto.domain.pieces.Pawn;
 import com.desierto.domain.pieces.Queen;
 import com.desierto.domain.pieces.Rook;
-import java.util.List;
 import java.util.Objects;
 
 public final class PositionalEvaluator implements PositionEvaluator {
-  private static final int MAX_PHASE = 24;
-  private static final int UNDEVELOPED_MINOR_PENALTY = 12;
-  private static final int KING_SHIELD_BONUS = 8;
+  static final int MAX_PHASE = 24;
+  static final int TABLE_SCALE = 32;
+  static final int SCORE_SCALE = MAX_PHASE * TABLE_SCALE;
+
+  private final PawnPositionEvaluator pawnEvaluator = new PawnPositionEvaluator();
+  private final KnightPositionEvaluator knightEvaluator = new KnightPositionEvaluator();
+  private final BishopPositionEvaluator bishopEvaluator = new BishopPositionEvaluator();
+  private final RookPositionEvaluator rookEvaluator = new RookPositionEvaluator();
+  private final QueenPositionEvaluator queenEvaluator = new QueenPositionEvaluator();
+  private final KingPositionEvaluator kingEvaluator = new KingPositionEvaluator();
 
   // Rows run from White's first rank to its eighth; Black uses the mirrored rank.
   private static final int[][] PAWN = {
@@ -94,45 +100,39 @@ public final class PositionalEvaluator implements PositionEvaluator {
   public int evaluate(Board board, Color perspective) {
     Objects.requireNonNull(board, "board must not be null");
     Objects.requireNonNull(perspective, "perspective must not be null");
-    List<Piece> pieces = board.getPieces();
-    int phase = 0;
-    for (Piece piece : pieces) {
-      phase += phaseWeight(piece);
-    }
-    phase = Math.min(phase, MAX_PHASE);
-
+    PositionContext context = new PositionContext(board);
     int weightedScore = 0;
-    for (Piece piece : pieces) {
-      Cell cell = piece.getCell();
-      int rank = piece.getColor() == Color.WHITE ? cell.row() : 7 - cell.row();
-      int file = cell.column();
-      int middlegame = table(piece)[rank][file];
-      int endgame = piece instanceof King ? KING_ENDGAME[rank][file] : middlegame;
-      if ((piece instanceof Knight && (file == 1 || file == 6)
-          || piece instanceof Bishop && (file == 2 || file == 5)) && rank == 0) {
-        middlegame -= UNDEVELOPED_MINOR_PENALTY;
+    for (Piece piece : context.pieces()) {
+      int value = pieceScore(piece, context);
+      if (!(piece instanceof King)) {
+        value += context.pressurePenalty(piece) * SCORE_SCALE;
       }
-      if (piece instanceof King) {
-        middlegame += kingShield(board, piece);
-      }
-      int value = middlegame * phase + endgame * (MAX_PHASE - phase);
       weightedScore += piece.getColor() == Color.WHITE ? value : -value;
     }
-    int whiteScore = weightedScore / MAX_PHASE;
+    int whiteScore = weightedScore / SCORE_SCALE;
     return perspective == Color.WHITE ? whiteScore : -whiteScore;
   }
 
-  private static int phaseWeight(Piece piece) {
-    if (piece instanceof Queen) {
-      return 4;
-    }
-    if (piece instanceof Rook) {
-      return 2;
-    }
-    if (piece instanceof Knight || piece instanceof Bishop) {
-      return 1;
-    }
-    return 0;
+  private int pieceScore(Piece piece, PositionContext context) {
+    if (piece instanceof Pawn pawn) return pawnEvaluator.evaluate(pawn, context);
+    if (piece instanceof Knight knight) return knightEvaluator.evaluate(knight, context);
+    if (piece instanceof Bishop bishop) return bishopEvaluator.evaluate(bishop, context);
+    if (piece instanceof Rook rook) return rookEvaluator.evaluate(rook, context);
+    if (piece instanceof Queen queen) return queenEvaluator.evaluate(queen, context);
+    if (piece instanceof King king) return kingEvaluator.evaluate(king, context);
+    throw new IllegalArgumentException("Unknown piece type");
+  }
+
+  static int tableValue(Piece piece) {
+    Cell cell = piece.getCell();
+    int rank = piece.getColor() == Color.WHITE ? cell.row() : 7 - cell.row();
+    return table(piece)[rank][cell.column()];
+  }
+
+  static int kingEndgameValue(King king) {
+    Cell cell = king.getCell();
+    int rank = king.getColor() == Color.WHITE ? cell.row() : 7 - cell.row();
+    return KING_ENDGAME[rank][cell.column()];
   }
 
   private static int[][] table(Piece piece) {
@@ -157,19 +157,4 @@ public final class PositionalEvaluator implements PositionEvaluator {
     throw new IllegalArgumentException("Unknown piece type");
   }
 
-  private static int kingShield(Board board, Piece king) {
-    Cell cell = king.getCell();
-    int row = cell.row() + (king.getColor() == Color.WHITE ? 1 : -1);
-    if (row < 0 || row > 7) {
-      return 0;
-    }
-    int shield = 0;
-    for (int file = Math.max(0, cell.column() - 1); file <= Math.min(7, cell.column() + 1); file++) {
-      Piece piece = board.getPieceAt(Cell.of(row, file)).orElse(null);
-      if (piece instanceof Pawn && piece.getColor() == king.getColor()) {
-        shield += KING_SHIELD_BONUS;
-      }
-    }
-    return shield;
-  }
 }
