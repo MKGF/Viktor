@@ -202,6 +202,24 @@ Estos avances no concluyen la mejora de legibilidad interna del tablero y de la 
 Queda por revisar esas áreas gradualmente, con las mismas garantías, antes de considerar
 terminado el plan.
 
+### Simplificación de `Board`
+
+El primer paso agrupa los cuatro derechos de enroque en un valor inmutable interno,
+`CastlingRights`. Este concentra la pérdida de derechos al mover un rey o una torre, o al
+capturar una torre en una de las cuatro casillas iniciales de torre. `Board` conserva sus
+getters públicos y puede compartir el valor en copias y estados de deshacer.
+
+Se han añadido pruebas para las 16 combinaciones de derechos y su restauración, sin modificar
+los tests existentes. Las búsquedas deterministas comparadas mantienen jugada, puntuación,
+profundidad y nodos. Las mediciones de tiempo muestran variaciones considerables entre
+ejecuciones; no permiten concluir si existe un cambio de rendimiento.
+
+Quedan como siguientes objetivos, aún sin abordar:
+
+- Aclarar las dos formas de aplicar y deshacer jugadas.
+- Hacer más legible la aplicación de jugadas especiales.
+- Simplificar la copia y restauración del estado.
+
 ## Decisiones aún abiertas
 
 - Los parámetros y contratos concretos de `Engine.think()`, incluida la comunicación de
@@ -210,8 +228,8 @@ terminado el plan.
   manteniendo la compatibilidad existente.
 - La composición concreta de las herramientas y los límites entre dependencias directas e
   indirectas, preservando la estrategia y el ciclo de vida actuales.
-- Qué abstracciones del estado del tablero, como los derechos de enroque, simplifican realmente
-  el código sin comprometer contratos o rendimiento.
+- Qué otras abstracciones del estado del tablero simplifican realmente el código sin
+  comprometer contratos o rendimiento.
 
 Estas decisiones se tomarán al revisar el código y la cobertura, no se dan por resueltas en
 este documento.
