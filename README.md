@@ -3,6 +3,23 @@
 Viktor is a chess engine written in Java. It includes a console interface for playing against
 the engine.
 
+## How Viktor makes a decision
+
+`com.desierto.search.Engine` thinks about a board with `think()` and returns a `SearchResult`.
+It uses `IterativeDeepeningSearch` and `AlphaBetaSearch`, with move generation, evaluation,
+move ordering, quiescence and transposition caching as appropriate. Thinking does not play
+the decision on the caller's board. The result can instead contain a draw claim or indicate
+that there is no move; time limits and cancellation retain their documented behavior.
+
+The console interprets the decision and applies a move to its board. UCI communicates a
+response to the GUI, which controls the game. `MinimaxSearch` is an alternative used by
+tests, not by the production search path.
+
+The search classes and interface were renamed: callers of `FixedDepthAlphaBetaEngine`,
+`FixedDepthMinimaxEngine`, `IterativeDeepeningEngine` and `SearchEngine` must use
+`AlphaBetaSearch`, `MinimaxSearch`, `IterativeDeepeningSearch` and `SearchAlgorithm`,
+respectively. The former names are no longer available.
+
 ## Branch names
 
 New branches on GitHub must use `type/version/short-description`, for example

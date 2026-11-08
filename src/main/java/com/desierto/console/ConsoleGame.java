@@ -7,7 +7,7 @@ import com.desierto.domain.DrawDetector;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
-import com.desierto.search.IterativeDeepeningEngine;
+import com.desierto.search.Engine;
 import com.desierto.search.SearchLimits;
 import com.desierto.search.SearchDiagnostics;
 import com.desierto.search.SearchResult;
@@ -36,7 +36,7 @@ public final class ConsoleGame {
   }
 
   public ConsoleGame(Color humanColor, int depth, Duration timeLimit) {
-    this(Board.standard(), humanColor, new IterativeDeepeningEngine()::findBestMove,
+    this(Board.standard(), humanColor, new Engine()::think,
         new SearchLimits(depth), timeLimit);
   }
 

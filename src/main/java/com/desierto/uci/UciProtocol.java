@@ -5,7 +5,7 @@ import com.desierto.domain.Board;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
-import com.desierto.search.IterativeDeepeningEngine;
+import com.desierto.search.Engine;
 import com.desierto.search.SearchLimits;
 import com.desierto.search.SearchDiagnostics;
 import com.desierto.search.SearchResult;
@@ -181,7 +181,7 @@ final class UciProtocol {
         inCheck = generator.isKingInCheck(position, position.getSideToMove());
         fallback = legalMoves.stream().findFirst();
         best = fallback;
-        result = new IterativeDeepeningEngine().findBestMove(position,
+        result = new Engine().think(position,
             new SearchLimits(options.depth()),
             () -> cancelled.get() || (timeNanos >= 0 && System.nanoTime() - start >= timeNanos),
             iteration -> reportIteration(iteration, start));
