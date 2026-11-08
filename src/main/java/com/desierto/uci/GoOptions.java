@@ -4,7 +4,7 @@ import com.desierto.domain.Color;
 import java.util.HashSet;
 import java.util.Set;
 
-record GoOptions(int depth, long timeMillis, boolean infinite) {
+record GoOptions(int depth, long timeMillis, boolean infinite, boolean managedTime) {
   private static final int MAX_DEPTH = 64;
 
   static GoOptions parse(String[] tokens, Color side) {
@@ -75,6 +75,7 @@ record GoOptions(int depth, long timeMillis, boolean infinite) {
       time = base >= available || incrementBudget >= available - base
           ? available : base + incrementBudget;
     }
-    return new GoOptions(depth, time, infinite || (time < 0 && !depthSpecified));
+    return new GoOptions(depth, time, infinite || (time < 0 && !depthSpecified),
+        !infinite && moveTime == null && remaining != null && time > 0);
   }
 }

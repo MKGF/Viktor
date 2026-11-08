@@ -16,12 +16,16 @@ class GoOptionsTest {
     assertEquals(-1, depth.timeMillis());
     assertFalse(depth.infinite());
     assertEquals(250, GoOptions.parse("go movetime 250".split(" "), Color.WHITE).timeMillis());
+    assertFalse(GoOptions.parse("go movetime 250 wtime 30000".split(" "), Color.WHITE).managedTime());
+    assertFalse(depth.managedTime());
     GoOptions clock = GoOptions.parse("go wtime 30000 btime 10000 winc 1000 binc 200 movestogo 10"
         .split(" "), Color.WHITE);
     assertEquals(3750, clock.timeMillis());
+    assertTrue(clock.managedTime());
     assertEquals(1150, GoOptions.parse("go wtime 30000 btime 10000 winc 1000 binc 200 movestogo 10"
         .split(" "), Color.BLACK).timeMillis());
     assertTrue(GoOptions.parse("go infinite".split(" "), Color.WHITE).infinite());
+    assertFalse(GoOptions.parse("go infinite wtime 30000".split(" "), Color.WHITE).managedTime());
     assertTrue(GoOptions.parse("go".split(" "), Color.WHITE).infinite());
     assertEquals(0, GoOptions.parse("go wtime 0 btime 0".split(" "), Color.WHITE).timeMillis());
   }

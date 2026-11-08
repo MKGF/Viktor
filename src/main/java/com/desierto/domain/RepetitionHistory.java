@@ -39,6 +39,10 @@ final class RepetitionHistory {
     return head != null && head.size() >= 2;
   }
 
+  boolean isEmpty() {
+    return head == null;
+  }
+
   long fingerprint() {
     return head == null ? 0 : head.fingerprint();
   }

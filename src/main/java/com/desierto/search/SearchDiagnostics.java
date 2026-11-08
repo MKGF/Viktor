@@ -2,6 +2,7 @@ package com.desierto.search;
 
 import com.desierto.domain.Board;
 import com.desierto.domain.Color;
+import com.desierto.domain.LegalMove;
 import com.desierto.search.evaluation.MaterialEvaluator;
 import com.desierto.search.evaluation.PositionalEvaluator;
 import com.desierto.search.evaluation.StandardPositionEvaluator;
@@ -26,17 +27,55 @@ public final class SearchDiagnostics {
   public static String result(SearchResult result) {
     Objects.requireNonNull(result, "result must not be null");
     return "depth=" + result.depth() + " nodes=" + result.nodes()
-        + " score=" + score(result.score()).replace(' ', ':');
+        + " score=" + (result.fromBook() || result.tablebaseOutcome().isPresent()
+            ? "unavailable" : score(result.score()).replace(' ', ':'));
   }
 
   public static String decision(String source, String selectedMove, SearchResult result, String details) {
+    return formatDecision(source, selectedMove, result, details, null);
+  }
+
+  public static String decision(String source, String selectedMove, SearchResult result, String details,
+      Board board) {
+    return formatDecision(source, selectedMove, result, details,
+        Objects.requireNonNull(board, "board must not be null"));
+  }
+
+  private static String formatDecision(String source, String selectedMove, SearchResult result,
+      String details, Board board) {
     Objects.requireNonNull(source, "source must not be null");
     Objects.requireNonNull(selectedMove, "selectedMove must not be null");
     Objects.requireNonNull(details, "details must not be null");
     StringBuilder text = new StringBuilder("decision:\n  source=").append(source)
         .append("\n  selected_move=").append(selectedMove)
-        .append("\n  score=").append(result == null ? "unavailable" : score(result.score()).replace(' ', ':'));
-    if (result != null) {
+        .append("\n  score=").append(result == null || result.fromBook() || result.tablebaseOutcome().isPresent()
+            ? "unavailable" : score(result.score()).replace(' ', ':'));
+    if (result != null && result.bestMove().isPresent()) {
+      if (result.fromBook()) {
+        text.append("\n  reason=opening_book");
+      } else if (result.tablebaseOutcome().isPresent()) {
+        var outcome = result.tablebaseOutcome().orElseThrow();
+        text.append("\n  reason=tablebase")
+            .append("\n  wdl=").append(outcome.wdl().name().toLowerCase(Locale.ROOT))
+            .append("\n  dtz=").append(outcome.dtz());
+      } else {
+        text.append("\n  reason=best_searched_score");
+        if (board != null) {
+          Board after = new LegalMove(board, result.bestMove().orElseThrow()).resultingPosition();
+          Color perspective = board.getSideToMove();
+          MaterialEvaluator material = new MaterialEvaluator();
+          PositionalEvaluator positional = new PositionalEvaluator();
+          int materialDelta = material.evaluate(after, perspective) - material.evaluate(board, perspective);
+          int positionalDelta = positional.evaluate(after, perspective) - positional.evaluate(board, perspective);
+          text.append("\n  static_perspective=").append(perspective.name().toLowerCase(Locale.ROOT))
+              .append("\n  static_material_delta=cp:").append(materialDelta)
+              .append("\n  static_positional_delta=cp:").append(positionalDelta);
+        }
+      }
+    } else {
+      text.append("\n  reason=").append(source);
+    }
+    if (result != null && !result.fromBook() && result.tablebaseOutcome().isEmpty()) {
       text.append("\n  score_perspective=").append(result.perspective().name().toLowerCase(Locale.ROOT));
     }
     text.append("\n  pv=");

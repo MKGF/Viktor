@@ -201,6 +201,10 @@ public class Board {
     return cell == null ? null : squares[cell.row()][cell.column()];
   }
 
+  Piece pieceAt(int row, int column) {
+    return squares[row][column];
+  }
+
   private void setPiece(Cell cell, Piece piece) {
     if (cell != null) {
       squares[cell.row()][cell.column()] = piece;
@@ -258,6 +262,11 @@ public class Board {
   public boolean isThreefoldRepetition() {
     return repetitionHistory.mayRepeat()
         && repetitionHistory.containsTwice(RepetitionPosition.of(this));
+  }
+
+  /** Whether previous reversible positions are available for repetition detection. */
+  public boolean hasRepetitionHistory() {
+    return !repetitionHistory.isEmpty();
   }
 
   /** Returns a fingerprint of the previous-position counts for transposition caching. */

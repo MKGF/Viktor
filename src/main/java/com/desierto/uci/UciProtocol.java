@@ -1,6 +1,8 @@
 package com.desierto.uci;
 
 import com.desierto.EngineInfo;
+import com.desierto.DefaultResources;
+import com.desierto.book.OpeningBook;
 import com.desierto.domain.Board;
 import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
@@ -11,9 +13,13 @@ import com.desierto.search.SearchLimits;
 import com.desierto.search.SearchDiagnostics;
 import com.desierto.search.SearchResult;
 import com.desierto.search.SearchTimeoutException;
+import com.desierto.tablebase.SyzygyTablebase;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -25,15 +31,35 @@ final class UciProtocol {
   private UciSessionLog sessionLog;
   private Board board = Board.standard();
   private SearchTask active;
+  private final String defaultBookFile;
+  private final String defaultSyzygyPath;
+  private boolean ownBook;
+  private String bookFile;
+  private String syzygyPath;
+  private boolean bookInitialized;
+  private boolean tablebaseInitialized;
+  private OpeningBook openingBook;
+  private SyzygyTablebase tablebase;
 
   UciProtocol(PrintStream output, PrintStream errors) {
     this(output, errors, null);
   }
 
   UciProtocol(PrintStream output, PrintStream errors, UciSessionLog sessionLog) {
+    this(output, errors, sessionLog, DefaultResources.locate());
+  }
+
+  UciProtocol(PrintStream output, PrintStream errors, UciSessionLog sessionLog,
+      DefaultResources defaults) {
     this.output = Objects.requireNonNull(output, "output must not be null");
     this.errors = Objects.requireNonNull(errors, "errors must not be null");
     this.sessionLog = sessionLog;
+    Objects.requireNonNull(defaults, "defaults must not be null");
+    defaultBookFile = defaults.book() == null ? "" : defaults.book().toString();
+    defaultSyzygyPath = defaults.tablebases() == null ? "" : defaults.tablebases().toString();
+    ownBook = !defaultBookFile.isEmpty();
+    bookFile = defaultBookFile;
+    syzygyPath = defaultSyzygyPath;
   }
 
   void run(BufferedReader input) throws IOException {
@@ -51,9 +77,19 @@ final class UciProtocol {
             case "uci" -> {
               output.println("id name " + EngineInfo.name());
               output.println("id author MKGF");
+              output.println("option name OwnBook type check default " + !defaultBookFile.isEmpty());
+              output.println("option name BookFile type string default " + optionValue(defaultBookFile));
+              output.println("option name SyzygyPath type string default " + optionValue(defaultSyzygyPath));
               output.println("uciok");
             }
-            case "isready" -> output.println("readyok");
+            case "isready" -> {
+              initializeResources();
+              output.println("readyok");
+            }
+            case "setoption" -> {
+              stop(false);
+              setOption(line);
+            }
             case "ucinewgame" -> {
               stop(false);
               board = Board.standard();
@@ -71,10 +107,12 @@ final class UciProtocol {
             case "go" -> {
               stop(false);
               GoOptions options = GoOptions.parse(tokens, board.getSideToMove());
+              initializeResources();
               recordLog("search:\n  input=" + line);
-              active = new SearchTask(board.copy(), options);
+              active = new SearchTask(board.copy(), options, ownBook ? openingBook : null, tablebase);
               active.thread.start();
             }
+
             case "stop" -> stop(false);
             case "quit" -> {
               stop(true);
@@ -97,6 +135,75 @@ final class UciProtocol {
         recordLog("session:\n  event=end");
       }
     }
+  }
+
+  private void setOption(String line) {
+    String prefix = "setoption name ";
+    if (!line.startsWith(prefix)) throw new IllegalArgumentException("Expected setoption name");
+    String rest = line.substring(prefix.length());
+    int separator = rest.indexOf(" value ");
+    if (separator < 0) throw new IllegalArgumentException("Expected setoption value");
+    String name = rest.substring(0, separator).trim();
+    String value = rest.substring(separator + " value ".length()).trim();
+    if (name.equalsIgnoreCase("SyzygyPath")) {
+      syzygyPath = value.equals("<empty>") ? "" : value;
+      loadTablebase();
+      return;
+    } else if (name.equalsIgnoreCase("OwnBook")) {
+      if (!value.equalsIgnoreCase("true") && !value.equalsIgnoreCase("false")) {
+        throw new IllegalArgumentException("OwnBook must be true or false");
+      }
+      ownBook = Boolean.parseBoolean(value);
+    } else if (name.equalsIgnoreCase("BookFile")) {
+      bookFile = value.equals("<empty>") ? "" : value;
+    } else {
+      throw new IllegalArgumentException("Unknown option: " + name);
+    }
+    loadBook();
+  }
+
+  private static String optionValue(String value) {
+    return value.isEmpty() ? "<empty>" : value;
+  }
+
+  private void initializeResources() {
+    if (!bookInitialized) loadBook();
+    if (!tablebaseInitialized) loadTablebase();
+  }
+
+  private void loadTablebase() {
+    tablebaseInitialized = true;
+    tablebase = null;
+    if (!syzygyPath.isEmpty()) {
+      try {
+        tablebase = new SyzygyTablebase(Path.of(syzygyPath), this::warning);
+      } catch (IOException | SecurityException | InvalidPathException ex) {
+        warning("Cannot load tablebases " + syzygyPath + ": " + ex.getMessage());
+      }
+    }
+  }
+
+  private void loadBook() {
+    bookInitialized = true;
+    openingBook = null;
+    if (ownBook) {
+      if (bookFile.isEmpty()) {
+        warning("Opening book is enabled but BookFile is empty");
+        return;
+      }
+      try {
+        openingBook = new OpeningBook(Path.of(bookFile), this::warning);
+      } catch (IOException | SecurityException | InvalidPathException ex) {
+        warning("Cannot load opening book " + bookFile + ": " + ex.getMessage());
+      }
+    }
+  }
+
+  private synchronized void warning(String message) {
+    String warning = "Warning: " + message;
+    errors.println(warning);
+    output.println("info string " + warning);
+    recordLog("warning:\n  message=" + warning);
   }
 
   private synchronized void logDiagnostic(String diagnostic) {
@@ -154,13 +261,17 @@ final class UciProtocol {
   private final class SearchTask implements Runnable {
     private final Board position;
     private final GoOptions options;
+    private final OpeningBook book;
+    private final SyzygyTablebase tablebase;
     private final AtomicBoolean cancelled = new AtomicBoolean();
     private final AtomicBoolean suppressOutput = new AtomicBoolean();
     private final Thread thread;
 
-    SearchTask(Board position, GoOptions options) {
+    SearchTask(Board position, GoOptions options, OpeningBook book, SyzygyTablebase tablebase) {
       this.position = position;
       this.options = options;
+      this.book = book;
+      this.tablebase = tablebase;
       thread = new Thread(this, "viktor-uci-search");
     }
 
@@ -182,12 +293,19 @@ final class UciProtocol {
         inCheck = generator.isKingInCheck(position, position.getSideToMove());
         fallback = legalMoves.stream().findFirst();
         best = fallback;
-        result = new Engine().think(position,
-            new SearchLimits(options.depth()),
-            () -> cancelled.get() || (timeNanos >= 0 && System.nanoTime() - start >= timeNanos),
-            iteration -> reportIteration(iteration, start));
+        Engine engine = new Engine(book, tablebase);
+        java.util.function.BooleanSupplier deadline =
+            () -> cancelled.get() || (timeNanos >= 0 && System.nanoTime() - start >= timeNanos);
+        long remaining = timeNanos < 0 ? -1 : timeNanos - (System.nanoTime() - start);
+        if (options.managedTime() && remaining > 0) {
+          result = engine.thinkManaged(position, new SearchLimits(options.depth()), deadline,
+              iteration -> reportIteration(iteration, start), Duration.ofNanos(remaining));
+        } else {
+          result = engine.think(position, new SearchLimits(options.depth()), deadline,
+              iteration -> reportIteration(iteration, start));
+        }
         if (result.bestMove().isPresent()) {
-          reason = "search";
+          reason = result.fromBook() ? "book" : result.tablebaseOutcome().isPresent() ? "tablebase" : "search";
           best = result.bestMove();
         } else if (result.drawClaim().isPresent()) {
           reason = "draw_claim";
@@ -239,7 +357,7 @@ final class UciProtocol {
             + " time_limit_ms=" + (options.timeMillis() < 0 ? "unlimited" : options.timeMillis())
             + " infinite=" + options.infinite() + " stop_requested=" + cancelled.get()
             + " elapsed_ms=" + (System.nanoTime() - start) / 1_000_000
-            + " uci_move=" + best.map(MoveNotation::format).orElse("0000"));
+            + " uci_move=" + best.map(MoveNotation::format).orElse("0000"), position);
         logDiagnostic(decision);
         if (result != null && result.bestMove().isPresent()) {
           Board after = new LegalMove(position, result.bestMove().orElseThrow()).resultingPosition();

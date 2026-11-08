@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.desierto.EngineInfo;
+import com.desierto.book.OpeningBook;
 import com.desierto.domain.Board;
 import com.desierto.domain.BoardFactory;
 import com.desierto.domain.Cell;
@@ -22,23 +24,70 @@ import com.desierto.domain.pieces.Rook;
 import com.desierto.console.ConsoleGame.TimedSearch;
 import com.desierto.search.SearchLimits;
 import com.desierto.search.DrawClaim;
+import com.desierto.search.Engine;
 import com.desierto.search.IterativeDeepeningSearch;
 import com.desierto.search.SearchResult;
 import com.desierto.search.SearchTimeoutException;
+import com.desierto.tablebase.SyzygyTablebase;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class ConsoleGameTest {
 
   private final MoveGenerator generator = new MoveGenerator();
+
+  @Test
+  void usesTablebaseInConsole() throws Exception {
+    String path = System.getProperty("viktor.syzygy.testPath");
+    assumeTrue(path != null && !path.isBlank(), "Set viktor.syzygy.testPath for real-table tests");
+    SyzygyTablebase tablebase = new SyzygyTablebase(Path.of(path), warning -> {
+      throw new AssertionError(warning);
+    });
+    Board board = BoardFactory.position().castlingRights(false, false, false, false)
+        .place(new King(Color.WHITE, Cell.E1), Cell.E1)
+        .place(new Queen(Color.WHITE, Cell.D1), Cell.D1)
+        .place(new King(Color.BLACK, Cell.E8), Cell.E8).build();
+    String output = play(board, Color.BLACK, new Engine(null, tablebase)::think, "quit\n");
+    assertTrue(output.contains("source=tablebase"));
+    assertTrue(output.contains("reason=tablebase"));
+    assertTrue(output.contains("score=unavailable"));
+    assertTrue(output.contains("wdl=win"));
+    assertTrue(output.contains("(tablebase)"));
+  }
+
+  @Test
+  void usesBookInConsole(@TempDir Path directory) throws Exception {
+    Path file = directory.resolve("book.bin");
+    try (DataOutputStream out = new DataOutputStream(Files.newOutputStream(file))) {
+      out.writeLong(0x463b96181691fc9cL);
+      out.writeShort((12 << 6) | 28);
+      out.writeShort(1);
+      out.writeInt(0);
+    }
+    OpeningBook book = new OpeningBook(file, warning -> { throw new AssertionError(warning); });
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (PrintStream output = new PrintStream(bytes, true, StandardCharsets.UTF_8)) {
+      new ConsoleGame(Color.BLACK, 1, Duration.ofSeconds(5), book)
+          .run(new BufferedReader(new StringReader("quit\n")), output);
+    }
+    String output = bytes.toString(StandardCharsets.UTF_8);
+    assertTrue(output.contains("source=book"));
+    assertTrue(output.contains("reason=opening_book"));
+    assertTrue(output.contains("score=unavailable"));
+    assertTrue(output.contains("Viktor plays: e2e4 (opening book)"));
+  }
 
   @Test
   void shouldEndAutomaticallyWhenTheEngineCompletesThreefoldRepetition() throws IOException {
@@ -73,6 +122,9 @@ class ConsoleGameTest {
     assertTrue(output.contains("e7e8q"));
     assertTrue(output.contains("Viktor plays: e7e5"));
     assertTrue(output.contains("decision:\n  source=search\n  selected_move=e7e5"));
+    assertTrue(output.contains("reason=best_searched_score"));
+    assertTrue(output.contains("static_perspective=black"));
+    assertTrue(output.contains("static_material_delta=cp:0"));
     assertTrue(output.contains("position:\n  stage=initial\n  perspective=white"));
     assertEquals(2, output.lines().filter(line -> line.equals("  stage=after_move")).count());
     assertTrue(output.contains("requested_depth=1 time_limit_ms=1000"));

@@ -1,6 +1,7 @@
 package com.desierto.console;
 
 import com.desierto.EngineInfo;
+import com.desierto.book.OpeningBook;
 import com.desierto.domain.Board;
 import com.desierto.domain.Color;
 import com.desierto.domain.DrawDetector;
@@ -13,6 +14,7 @@ import com.desierto.search.SearchLimits;
 import com.desierto.search.SearchDiagnostics;
 import com.desierto.search.SearchResult;
 import com.desierto.search.SearchTimeoutException;
+import com.desierto.tablebase.SyzygyTablebase;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -37,7 +39,16 @@ public final class ConsoleGame {
   }
 
   public ConsoleGame(Color humanColor, int depth, Duration timeLimit) {
-    this(Board.standard(), humanColor, new Engine()::think,
+    this(humanColor, depth, timeLimit, null);
+  }
+
+  public ConsoleGame(Color humanColor, int depth, Duration timeLimit, OpeningBook book) {
+    this(humanColor, depth, timeLimit, book, null);
+  }
+
+  public ConsoleGame(Color humanColor, int depth, Duration timeLimit, OpeningBook book,
+      SyzygyTablebase tablebase) {
+    this(Board.standard(), humanColor, new Engine(book, tablebase)::thinkManaged,
         new SearchLimits(depth), timeLimit);
   }
 
@@ -150,7 +161,7 @@ public final class ConsoleGame {
               + " halfmove=" + board.getHalfmoveClock() + " in_check=" + inCheck
               + " legal_moves=" + legalMoves.size() + " requested_depth=" + limits.maxDepth()
               + " time_limit_ms=" + timeLimit.toMillis() + " elapsed_ms="
-              + (System.nanoTime() - start) / 1_000_000));
+              + (System.nanoTime() - start) / 1_000_000, board));
           output.println("Search timed out before completing the first depth. Increase --time and try again.");
           output.println("Game ended.");
           return;
@@ -176,10 +187,13 @@ public final class ConsoleGame {
         }
         Move move = result.bestMove()
             .orElseThrow(() -> new IllegalStateException("The engine returned no move in a non-terminal position"));
-        reportDecision(output, side, legalMoves.size(), inCheck, "search",
+        reportDecision(output, side, legalMoves.size(), inCheck,
+            result.fromBook() ? "book" : result.tablebaseOutcome().isPresent() ? "tablebase" : "search",
             MoveNotation.format(move), result, start, "");
         new LegalMove(board, move).play();
-        output.println("Viktor plays: " + MoveNotation.format(move) + " (depth " + result.depth() + ")");
+        output.println("Viktor plays: " + MoveNotation.format(move)
+            + (result.fromBook() ? " (opening book)" : result.tablebaseOutcome().isPresent()
+                ? " (tablebase)" : " (depth " + result.depth() + ")"));
       }
       output.println(board);
       output.println(SearchDiagnostics.position(board, "after_move"));
@@ -194,7 +208,7 @@ public final class ConsoleGame {
         + " in_check=" + inCheck + " legal_moves=" + legalMoves
         + " requested_depth=" + limits.maxDepth() + " time_limit_ms=" + timeLimit.toMillis()
         + " elapsed_ms=" + (System.nanoTime() - start) / 1_000_000
-        + extra));
+        + extra, board));
   }
 
   private static String colorName(Color color) {

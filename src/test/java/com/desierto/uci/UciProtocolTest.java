@@ -7,12 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.desierto.EngineInfo;
+import com.desierto.DefaultResources;
 import com.desierto.domain.Board;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
 import com.desierto.search.SearchDiagnostics;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.PipedReader;
 import java.io.PipedWriter;
@@ -23,8 +25,173 @@ import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class UciProtocolTest {
+  @Test
+  void clockManagedSearchStopsOnForcedMoveButDepthSearchContinues() throws Exception {
+    String position = "position fen 7k/8/5K2/8/8/8/8/7R b - - 0 1";
+    try (Harness h = new Harness()) {
+      h.send(position + "\ngo wtime 30000 btime 30000\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("info depth 1 "));
+      assertFalse(output.contains("info depth 2 "));
+      assertTrue(output.contains("bestmove h8g8"));
+      h.send(position + "\ngo depth 2\n");
+      output = h.awaitCount("bestmove ", 2);
+      assertTrue(output.contains("info depth 2 "));
+      h.send(position + "\ngo depth 2 movetime 30000\n");
+      output = h.awaitCount("bestmove ", 3);
+      assertTrue(output.substring(output.lastIndexOf("bestmove ", output.lastIndexOf("bestmove ") - 1))
+          .contains("info depth 2 "));
+    }
+  }
+
+  @Test
+  void usesDefaultBookAndCanDisableIt(@TempDir Path directory) throws Exception {
+    DefaultResources defaults = DefaultResources.inDirectory(directory);
+    Files.createDirectories(defaults.book().getParent());
+    try (DataOutputStream out = new DataOutputStream(Files.newOutputStream(defaults.book()))) {
+      out.writeLong(0x463b96181691fc9cL);
+      out.writeShort((12 << 6) | 28);
+      out.writeShort(1);
+      out.writeInt(0);
+    }
+    try (Harness h = new Harness(defaults)) {
+      h.send("uci\nisready\nposition startpos\ngo depth 1\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("option name OwnBook type check default true"));
+      assertTrue(output.contains("option name BookFile type string default " + defaults.book()));
+      assertTrue(output.contains("option name SyzygyPath type string default " + defaults.tablebases()));
+      assertTrue(output.contains("source=book"));
+      assertTrue(output.contains("bestmove e2e4"));
+      assertTrue(output.contains("Warning: Cannot load tablebases"));
+      h.send("setoption name OwnBook value false\nposition startpos\ngo depth 1\n");
+      output = h.awaitCount("bestmove ", 2);
+      assertTrue(output.substring(output.indexOf("bestmove e2e4") + 12).contains("source=search"));
+    }
+  }
+
+  @Test
+  void usesDefaultTablebaseAndCanDisableIt() throws Exception {
+    String path = System.getProperty("viktor.syzygy.testPath");
+    assumeTrue(path != null && !path.isBlank(), "Set viktor.syzygy.testPath for real-table tests");
+    DefaultResources defaults = new DefaultResources(null, Path.of(path).toAbsolutePath());
+    try (Harness h = new Harness(defaults)) {
+      String position = "position fen 4k3/8/8/8/8/8/8/3QK3 w - - 0 1";
+      h.send("uci\nisready\n" + position + "\ngo depth 1\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("option name SyzygyPath type string default " + defaults.tablebases()));
+      assertTrue(output.contains("source=tablebase"));
+      h.send("setoption name SyzygyPath value <empty>\n" + position + "\ngo depth 1\n");
+      output = h.awaitCount("bestmove ", 2);
+      assertTrue(output.substring(output.indexOf("bestmove ") + 9).contains("source=search"));
+    }
+  }
+
+  @Test
+  void respectsDisablingDefaultsBeforeReadiness(@TempDir Path directory) throws Exception {
+    try (Harness h = new Harness(DefaultResources.inDirectory(directory))) {
+      h.send("uci\nsetoption name OwnBook value false\nsetoption name SyzygyPath value <empty>\n"
+          + "isready\nposition startpos\ngo depth 1\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("readyok"));
+      assertFalse(output.contains("Warning:"));
+      assertTrue(output.contains("source=search"));
+    }
+  }
+
+  @Test
+  void warnsAndSearchesWhenDefaultResourcesAreMissing(@TempDir Path directory) throws Exception {
+    try (Harness h = new Harness(DefaultResources.inDirectory(directory))) {
+      h.send("uci\nisready\nposition startpos\ngo depth 1\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("Warning: Cannot load opening book"));
+      assertTrue(output.contains("Warning: Cannot load tablebases"));
+      assertTrue(output.contains("source=search"));
+    }
+  }
+
+  @Test
+  void usesTablebaseAndWaitsForStopInInfiniteMode() throws Exception {
+    String path = System.getProperty("viktor.syzygy.testPath");
+    assumeTrue(path != null && !path.isBlank(), "Set viktor.syzygy.testPath for real-table tests");
+    try (Harness h = new Harness()) {
+      String position = "position fen 4k3/8/8/8/8/8/8/3QK3 w - - 0 1";
+      h.send("uci\nsetoption name SyzygyPath value " + Path.of(path).toAbsolutePath()
+          + "\n" + position + "\ngo depth 2\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("option name SyzygyPath type string default <empty>"));
+      assertTrue(output.contains("source=tablebase"));
+      assertTrue(output.contains("reason=tablebase"));
+      assertTrue(output.contains("wdl=win"));
+      assertTrue(output.contains("score=unavailable"));
+      assertLegalBestMove(output, UciPosition.parse(position.split(" ")));
+      h.send(position + "\ngo infinite\nisready\n");
+      output = h.await("readyok");
+      assertEquals(1, output.split("bestmove ", -1).length - 1);
+      h.send("stop\n");
+      output = h.awaitCount("bestmove ", 2);
+      assertLegalBestMove(output, UciPosition.parse(position.split(" ")));
+    }
+  }
+
+  @Test
+  void warnsAboutMissingTablebasesAndFallsBack(@TempDir Path directory) throws Exception {
+    try (Harness h = new Harness()) {
+      h.send("setoption name SyzygyPath value " + directory + "\n"
+          + "position fen 4k3/8/8/8/8/8/8/3QK3 w - - 0 1\ngo depth 1\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("Warning: Cannot load tablebases"));
+      assertTrue(output.contains("source=search"));
+    }
+  }
+
+  @Test
+  void configuresBookAndRespectsInfiniteSearch(@TempDir Path directory) throws Exception {
+    Path book = directory.resolve("opening book.bin");
+    try (DataOutputStream out = new DataOutputStream(Files.newOutputStream(book))) {
+      out.writeLong(0x463b96181691fc9cL);
+      out.writeShort((12 << 6) | 28);
+      out.writeShort(1);
+      out.writeInt(0);
+    }
+    try (Harness h = new Harness()) {
+      h.send("uci\nsetoption name BookFile value " + book
+          + "\nsetoption name OwnBook value true\nposition startpos\ngo depth 1\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("option name OwnBook type check default false"));
+      assertTrue(output.contains("option name BookFile type string default <empty>"));
+      assertTrue(output.contains("source=book"));
+      assertTrue(output.contains("reason=opening_book"));
+      assertTrue(output.contains("score=unavailable"));
+      assertTrue(output.contains("bestmove e2e4"));
+
+      h.send("position startpos\ngo infinite\nisready\n");
+      String ready = h.await("readyok");
+      assertEquals(1, ready.split("bestmove ", -1).length - 1);
+      h.send("stop\n");
+      output = h.awaitCount("bestmove ", 2);
+      assertLegalBestMove(output.substring(output.lastIndexOf("bestmove ")), Board.standard());
+
+      h.send("setoption name OwnBook value false\nposition startpos\ngo depth 1\n");
+      output = h.awaitCount("bestmove ", 3);
+      assertTrue(output.substring(output.indexOf("bestmove e2e4") + 12).contains("source=search"));
+    }
+  }
+
+  @Test
+  void warnsAboutMissingBookAndFallsBack(@TempDir Path directory) throws Exception {
+    try (Harness h = new Harness()) {
+      h.send("setoption name BookFile value " + directory.resolve("missing.bin")
+          + "\nsetoption name OwnBook value true\nposition startpos\ngo depth 1\n");
+      String output = h.await("bestmove ");
+      assertTrue(output.contains("Warning: Cannot load opening book"));
+      assertTrue(output.contains("source=search"));
+      assertLegalBestMove(output, Board.standard());
+    }
+  }
+
   @Test
   void writesReadableIndependentLogForMultipleGames(@TempDir Path directory) throws Exception {
     try (UciSessionLog log = UciSessionLog.open(directory, EngineInfo.name());
@@ -46,6 +213,10 @@ class UciProtocolTest {
       assertTrue(contents.contains("iteration:\n  depth=1"));
       assertTrue(contents.contains("iteration:\n  depth=2"));
       assertTrue(contents.contains("decision:\n  source=search"));
+      assertTrue(contents.contains("  reason=best_searched_score"));
+      assertTrue(contents.contains("  static_perspective=black"));
+      assertTrue(contents.contains("  static_material_delta=cp:"));
+      assertTrue(contents.contains("  static_positional_delta=cp:"));
       assertTrue(contents.contains("  alternatives:\n    - move="));
       assertTrue(contents.contains("  stage=projected_after_engine_move"));
       assertTrue(contents.contains("\n  side=black\n  fullmove=1\n"));
@@ -198,16 +369,24 @@ class UciProtocolTest {
     private volatile Throwable failure;
 
     Harness() throws IOException {
-      this(null);
+      this(null, new DefaultResources(null, null));
     }
 
     Harness(UciSessionLog sessionLog) throws IOException {
+      this(sessionLog, new DefaultResources(null, null));
+    }
+
+    Harness(DefaultResources defaults) throws IOException {
+      this(null, defaults);
+    }
+
+    Harness(UciSessionLog sessionLog, DefaultResources defaults) throws IOException {
       BufferedReader input = new BufferedReader(new PipedReader(commands));
       PrintStream output = new PrintStream(bytes, true, StandardCharsets.UTF_8);
       PrintStream errors = new PrintStream(errorBytes, true, StandardCharsets.UTF_8);
       protocol = new Thread(() -> {
         try {
-          new UciProtocol(output, errors, sessionLog).run(input);
+          new UciProtocol(output, errors, sessionLog, defaults).run(input);
         } catch (Throwable ex) {
           failure = ex;
         }

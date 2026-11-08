@@ -19,9 +19,12 @@ final class AttackDetector {
   }
 
   boolean isSquareAttacked(Board board, Cell square, Color attackerColor) {
-    for (Piece piece : board.getPieces(attackerColor)) {
-      if (attacks(board, piece, square)) {
-        return true;
+    for (int row = 0; row < 8; row++) {
+      for (int column = 0; column < 8; column++) {
+        Piece piece = board.pieceAt(row, column);
+        if (piece != null && piece.getColor() == attackerColor && attacks(board, piece, square)) {
+          return true;
+        }
       }
     }
     return false;
@@ -82,9 +85,12 @@ final class AttackDetector {
   }
 
   private Cell findKing(Board board, Color color) {
-    for (Piece piece : board.getPieces(color)) {
-      if (piece instanceof King) {
-        return piece.getCell();
+    for (int row = 0; row < 8; row++) {
+      for (int column = 0; column < 8; column++) {
+        Piece piece = board.pieceAt(row, column);
+        if (piece instanceof King && piece.getColor() == color) {
+          return piece.getCell();
+        }
       }
     }
     return null;
