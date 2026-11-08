@@ -1,7 +1,6 @@
 package com.desierto.uci;
 
 import com.desierto.domain.Board;
-import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
 import java.util.Arrays;
@@ -35,10 +34,10 @@ final class UciPosition {
         if (!MoveNotation.hasValidFormat(notation)) {
           throw new IllegalArgumentException("Invalid move: " + notation);
         }
-        Move move = MoveNotation.find(notation,
-            generator.generateLegalMoves(board, board.getSideToMove()))
+        var move = MoveNotation.findLegalMove(notation,
+            generator.generateLegalMoveApplications(board, board.getSideToMove()))
             .orElseThrow(() -> new IllegalArgumentException("Illegal move: " + notation));
-        board.makeMove(move);
+        move.play();
       }
     }
     return board;

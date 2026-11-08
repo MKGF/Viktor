@@ -8,14 +8,24 @@ public final class LegalMove {
   private final long sourceVersion;
   private final Move move;
 
-  LegalMove(Board sourceBoard, Move move) {
-    this.sourceBoard = Objects.requireNonNull(sourceBoard, "sourceBoard must not be null");
+  /** Validates the requested move against the current position. */
+  public LegalMove(Board board, Move move) {
+    this(new MoveGenerator().verifyMove(board, move), 0);
+  }
+
+  LegalMove(MoveGenerator.VerifiedMoves verified, int index) {
+    this.sourceBoard = verified.board();
     this.sourceVersion = sourceBoard.positionVersion();
-    this.move = Objects.requireNonNull(move, "move must not be null");
+    this.move = verified.moveAt(index);
   }
 
   public Move move() {
     return move;
+  }
+
+  /** Applies this move to its source board if that position has not changed. */
+  public void play() {
+    sourceBoard.applyLegalMove(this);
   }
 
   public Board resultingPosition() {

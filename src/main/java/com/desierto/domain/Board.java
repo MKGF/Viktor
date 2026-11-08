@@ -125,16 +125,29 @@ public class Board {
     return Optional.ofNullable(piece);
   }
 
+  /** Validates a raw move for compatibility; new callers can play a generated LegalMove. */
   public void makeMove(Move move) {
-    Objects.requireNonNull(move, "move must not be null");
-    validateLegalMove(move);
+    new LegalMove(this, move).play();
+  }
+
+  void applyLegalMove(LegalMove legalMove) {
+    legalMove.validateSource(this);
+    Move move = legalMove.move();
     RepetitionPosition previous = RepetitionPosition.of(this);
-    history.save(copy());
+    Board snapshot = copy();
+    try (MoveTransaction transaction = beginMove(move)) {
+      addRepetitionPosition(previous, move);
+      history.save(snapshot);
+      transaction.commit();
+    }
+  }
+
+  MoveTransaction beginMove(Move move) {
+    UndoState state = makeTemporaryMove(move);
     try {
-      applyMoveInternal(move);
-      repetitionHistory.add(previous, isIrreversible(move));
-    } catch (RuntimeException ex) {
-      history.restore();
+      return new MoveTransaction(state);
+    } catch (RuntimeException | Error ex) {
+      restoreTemporaryMove(state);
       throw ex;
     }
   }
@@ -158,7 +171,8 @@ public class Board {
     }
     UndoState state = new UndoState(move.from(), move.to(), pieceAt(move.from()), pieceAt(move.to()),
         extraFrom, pieceAt(extraFrom), extraTo, pieceAt(extraTo), lastMove, sideToMove,
-        castlingRights, enPassantTarget, halfmoveClock, fullmoveNumber, positionVersion);
+        castlingRights, enPassantTarget, halfmoveClock, fullmoveNumber, positionVersion,
+        repetitionHistory.checkpoint());
     try {
       applyGeneratedMove(move);
     } catch (RuntimeException | Error ex) {
@@ -180,6 +194,7 @@ public class Board {
     halfmoveClock = state.halfmoveClock();
     fullmoveNumber = state.fullmoveNumber();
     positionVersion = state.positionVersion();
+    repetitionHistory.restore(state.repetitionCheckpoint());
   }
 
   private Piece pieceAt(Cell cell) {
@@ -199,7 +214,36 @@ public class Board {
   record UndoState(Cell from, Cell to, Piece fromPiece, Piece toPiece, Cell extraFrom,
                    Piece extraFromPiece, Cell extraTo, Piece extraToPiece, Move lastMove,
                    Color sideToMove, CastlingRights castlingRights, Cell enPassantTarget,
-                   int halfmoveClock, int fullmoveNumber, long positionVersion) {
+                   int halfmoveClock, int fullmoveNumber, long positionVersion,
+                   RepetitionHistory.Node repetitionCheckpoint) {
+  }
+
+  final class MoveTransaction implements AutoCloseable {
+    private final UndoState state;
+    private boolean committed;
+    private boolean closed;
+
+    private MoveTransaction(UndoState state) {
+      this.state = state;
+    }
+
+    void commit() {
+      if (closed) {
+        throw new IllegalStateException("Move transaction is already closed");
+      }
+      committed = true;
+    }
+
+    @Override
+    public void close() {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      if (!committed) {
+        restoreTemporaryMove(state);
+      }
+    }
   }
 
   boolean isAtVersion(long version) {
@@ -225,16 +269,8 @@ public class Board {
     return RepetitionPosition.of(this);
   }
 
-  RepetitionHistory.Node repetitionCheckpoint() {
-    return repetitionHistory.checkpoint();
-  }
-
   void addRepetitionPosition(RepetitionPosition position, Move move) {
     repetitionHistory.add(position, isIrreversible(move));
-  }
-
-  void restoreRepetitionCheckpoint(RepetitionHistory.Node checkpoint) {
-    repetitionHistory.restore(checkpoint);
   }
 
   private static boolean isIrreversible(Move move) {
@@ -303,35 +339,6 @@ public class Board {
       default -> throw new IllegalStateException("Unexpected move type: " + move.type());
     }
     advancePositionVersion();
-  }
-
-  private void validateLegalMove(Move move) {
-    if (move.color() != sideToMove) {
-      throw new IllegalArgumentException("Move color must match the side to move");
-    }
-    boolean legalMove = new MoveGenerator().generateLegalMoves(this, sideToMove).stream()
-        .anyMatch(candidate -> representsSameMove(move, candidate));
-    if (!legalMove) {
-      throw new IllegalArgumentException("Move is not legal in the current position");
-    }
-  }
-
-  private boolean representsSameMove(Move requested, Move candidate) {
-    return requested.color() == candidate.color()
-        && requested.from().equals(candidate.from())
-        && requested.to().equals(candidate.to())
-        && requested.type() == candidate.type()
-        && representsSamePiece(requested.piece(), candidate.piece())
-        && representsSamePiece(requested.promotionPiece(), candidate.promotionPiece())
-        && representsSamePiece(requested.capturedPiece(), candidate.capturedPiece());
-  }
-
-  private boolean representsSamePiece(Piece requested, Piece candidate) {
-    if (requested == null || candidate == null) {
-      return requested == candidate;
-    }
-    return requested.getClass() == candidate.getClass()
-        && requested.getColor() == candidate.getColor();
   }
 
   public List<Piece> getPieces() {

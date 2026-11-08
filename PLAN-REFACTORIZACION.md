@@ -219,6 +219,23 @@ Para distinguir las jugadas de la partida de las que se prueban durante la búsq
 `exploreMove()`. Es un cambio de API: los consumidores de `apply()` deben usar el nuevo nombre.
 El scope sigue restaurando la posición y el historial de repetición al cerrarse.
 
+La aplicación de jugadas de partida utiliza ahora `LegalMove.play()`: el generador acredita
+la jugada para un tablero y una versión concretos, y la aplicación rechaza acreditaciones
+caducadas o de otro tablero. Consola y UCI obtienen esa acreditación para la posición en la
+que aplican una jugada; la búsqueda continúa usando `exploreMove()`. La prueba temporal de
+candidatas necesaria para comprobar su legalidad permanece interna a `MoveGenerator`, que
+agrupa la generación de candidatas y su filtrado.
+
+Al construir `LegalMove` con un tablero y una jugada, se comprueba su legalidad y se rechazan
+las jugadas inválidas. Cuando el generador produce todas las jugadas, las candidatas ya
+comprobadas se acreditan sin repetir la generación para cada una.
+
+Como transición, `Board.makeMove(Move)` mantiene su contrato público y delega la validación al
+generador antes de aplicar la jugada. La partida utiliza el mismo estado reversible que la
+búsqueda: la operación se confirma tras actualizar repetición y guardar la posición anterior,
+y se revierte si falla antes de confirmarse. `undoMove()` conserva el historial de partida y
+las búsquedas siguen restaurando sus movimientos temporales en orden inverso.
+
 Quedan como siguientes objetivos:
 
 - Seguir aclarando las dos formas de aplicar y deshacer jugadas.

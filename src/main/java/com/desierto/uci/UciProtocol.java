@@ -2,6 +2,7 @@ package com.desierto.uci;
 
 import com.desierto.EngineInfo;
 import com.desierto.domain.Board;
+import com.desierto.domain.LegalMove;
 import com.desierto.domain.Move;
 import com.desierto.domain.MoveGenerator;
 import com.desierto.domain.MoveNotation;
@@ -241,8 +242,7 @@ final class UciProtocol {
             + " uci_move=" + best.map(MoveNotation::format).orElse("0000"));
         logDiagnostic(decision);
         if (result != null && result.bestMove().isPresent()) {
-          Board after = position.copy();
-          after.makeMove(result.bestMove().orElseThrow());
+          Board after = new LegalMove(position, result.bestMove().orElseThrow()).resultingPosition();
           logDiagnostic(SearchDiagnostics.position(after, "projected_after_engine_move"));
         }
         output.println("bestmove " + best.map(MoveNotation::format).orElse("0000"));
