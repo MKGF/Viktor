@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="180" viewBox="0 0 900 180" role="img" aria-labelledby="title desc">
+  <title id="title">Viktor to Lucas Chess workflow</title>
+  <desc id="desc">Build the standalone engine, add its executable as an external engine, then start a game against Viktor.</desc>
+  <rect width="900" height="180" rx="14" fill="#f3f6fa"/>
+  <g font-family="Arial, sans-serif">
+    <rect x="22" y="35" width="250" height="110" rx="10" fill="#fff" stroke="#4771a6" stroke-width="2"/>
+    <text x="42" y="68" fill="#24496f" font-size="18" font-weight="bold">1. Build</text>
+    <text x="42" y="100" fill="#263238" font-size="15">Run build-uci.ps1</text>
+    <text x="42" y="123" fill="#455a64" font-size="14">Keep the output folder</text>
+    <path d="M280 90h30m-10-8 10 8-10 8" fill="none" stroke="#4771a6" stroke-width="3"/>
+    <rect x="320" y="35" width="250" height="110" rx="10" fill="#fff" stroke="#4771a6" stroke-width="2"/>
+    <text x="340" y="68" fill="#24496f" font-size="18" font-weight="bold">2. Register</text>
+    <text x="340" y="100" fill="#263238" font-size="15">Engines → External engines</text>
+    <text x="340" y="123" fill="#455a64" font-size="14">New → select Viktor .exe</text>
+    <path d="M578 90h30m-10-8 10 8-10 8" fill="none" stroke="#4771a6" stroke-width="3"/>
+    <rect x="618" y="35" width="260" height="110" rx="10" fill="#fff" stroke="#4771a6" stroke-width="2"/>
+    <text x="638" y="68" fill="#24496f" font-size="18" font-weight="bold">3. Play</text>
+    <text x="638" y="100" fill="#263238" font-size="15">Play → against an engine</text>
+    <text x="638" y="123" fill="#455a64" font-size="14">Choose Viktor and start</text>
+  </g>
+</svg>

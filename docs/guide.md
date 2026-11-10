@@ -226,13 +226,7 @@ Viktor reports loading or reading failures
 through `info string` and its log, then uses normal search. A book move is reported as
 `source=book` with no score; `go infinite` still waits for `stop`.
 
-For example, [Lucas Chess](https://lucaschess.pythonanywhere.com/downloads) supports external
-UCI engines:
-
-1. Install or run Lucas Chess for Windows.
-2. Open **Engines → External engines → New** and select the versioned `ViktorUCI-1.3.0.exe`.
-3. Accept the engine details, then start a game against an engine and select Viktor from
-   **External engines**. Choose your color and a fixed thinking time or depth.
+For an illustrated example, see the [Lucas Chess setup guide](lucas-chess.md).
 
 UCI sends Viktor the current position and requests a search; Viktor returns its selected move.
 The GUI controls the board, clock and game result. Viktor supports the UCI handshake, readiness,

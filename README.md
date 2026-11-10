@@ -44,6 +44,8 @@ GUI such as [Lucas Chess](https://lucaschess.pythonanywhere.com/downloads).
 The version comes from `pom.xml`; keep the entire generated directory together.
 The script does not overwrite an existing directory for the same version.
 
+See the [Lucas Chess setup guide](docs/lucas-chess.md) for illustrated steps.
+
 The GUI controls the board, clock and game result. Viktor supports depth,
 movetime, clock and infinite searches, but not pondering, `searchmoves` or node
 limits. A GUI must adjudicate draw claims; a standalone FEN does not include

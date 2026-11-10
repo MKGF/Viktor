@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="230" viewBox="0 0 900 230" role="img" aria-labelledby="title desc">
+  <title id="title">Standalone engine directory</title>
+  <desc id="desc">Select the versioned executable inside the ViktorUCI directory and keep it with the bundled runtime and optional books and tablebases directories.</desc>
+  <rect width="900" height="230" rx="14" fill="#f3f6fa"/>
+  <g font-family="Consolas, monospace" font-size="18" fill="#263238">
+    <text x="28" y="40" font-weight="bold">target\ViktorUCI-&lt;version&gt;\</text>
+    <rect x="25" y="55" width="840" height="35" rx="5" fill="#d9eafb"/>
+    <text x="45" y="79">ViktorUCI-&lt;version&gt;.exe</text>
+    <text x="480" y="79" fill="#24496f">← select this file in Lucas Chess</text>
+    <text x="45" y="115">runtime\</text>
+    <text x="480" y="115" fill="#455a64">bundled Java runtime</text>
+    <text x="45" y="150">books\openings.bin</text>
+    <text x="480" y="150" fill="#455a64">optional opening book</text>
+    <text x="45" y="185">tablebases\</text>
+    <text x="480" y="185" fill="#455a64">optional Syzygy files</text>
+    <text x="28" y="216" font-family="Arial, sans-serif" font-size="14" fill="#455a64">Keep the complete versioned directory together.</text>
+  </g>
+</svg>
